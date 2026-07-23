@@ -95,6 +95,20 @@ export function getBlobUrl(
   return entry;
 }
 
+/** Drop every cached render of one photo (after an edit/revert). */
+export function flushPhotoBlobs(photoId: string) {
+  for (const key of [...blobCache.keys()]) {
+    const body = key.slice(key.indexOf(':') + 1);
+    if (body === photoId || body.startsWith(photoId + ':')) {
+      const entry = blobCache.get(key)!;
+      blobCache.delete(key);
+      entry.then((u) => {
+        if (u) URL.revokeObjectURL(u);
+      });
+    }
+  }
+}
+
 export function flushBlobCache() {
   for (const entry of blobCache.values()) {
     entry.then((u) => {

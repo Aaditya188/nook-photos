@@ -64,6 +64,8 @@ export interface PhotoRecord {
   deletedAt: string | null;
   thumbUrl: string;
   originalUrl: string;
+  /** Set by the gateway when a non-destructive edit recipe exists (cache-bust key). */
+  editedAt?: number;
 }
 
 /** Body for POST /api/photos — required fields plus optional detail/backfill fields. */

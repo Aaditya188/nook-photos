@@ -11,6 +11,7 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import sharp from 'sharp';
 import { THUMBS_DIR, ORIGINALS_DIR, THUMB_CACHE_DIR, VIEW_CACHE_DIR, THUMB_WIDTHS } from './config.js';
+import { applyRecipe, getEdit } from './edits.js';
 
 // heic-convert is CommonJS with no types; require it to avoid ESM/type friction.
 const require = createRequire(import.meta.url);
@@ -22,8 +23,10 @@ export function nearestWidth(requested: number): number {
   return THUMB_WIDTHS[THUMB_WIDTHS.length - 1]!;
 }
 
-function cachePath(id: string, width: number): string {
-  return path.join(THUMB_CACHE_DIR, `${id}_${width}.jpg`);
+function cachePath(id: string, width: number, stamp: number): string {
+  // The edit timestamp is part of the name: editing (or reverting) a photo
+  // naturally invalidates every cached render of it.
+  return path.join(THUMB_CACHE_DIR, stamp ? `${id}_e${stamp}_${width}.jpg` : `${id}_${width}.jpg`);
 }
 
 // ---- tiny concurrency-limited job queue (background heavy work) ----
@@ -51,12 +54,13 @@ function schedule<T>(job: () => Promise<T>): Promise<T> {
 const inflight = new Map<string, Promise<string>>();
 
 /** Return the path to a cached JPEG of the given photo at ~`width` px (bucketed). */
-export async function getSizedThumb(id: string, width: number): Promise<string | null> {
+export async function getSizedThumb(id: string, width: number, raw = false): Promise<string | null> {
   const w = nearestWidth(width);
-  const out = cachePath(id, w);
+  const edit = raw ? null : getEdit(id);
+  const out = cachePath(id, w, edit?.editedAt ?? 0);
   if (fs.existsSync(out)) return out;
 
-  const key = `${id}_${w}`;
+  const key = `${id}_${edit?.editedAt ?? 0}_${w}`;
   let job = inflight.get(key);
   if (!job) {
     job = schedule(async () => {
@@ -64,8 +68,9 @@ export async function getSizedThumb(id: string, width: number): Promise<string |
       const src = pickSource(id);
       if (!src) throw new Error('no source image');
       const tmp = `${out}.${process.pid}.tmp`;
-      await sharp(src, { failOn: 'none' })
-        .rotate()
+      let pipeline = sharp(src, { failOn: 'none' }).rotate();
+      if (edit) pipeline = await applyRecipe(pipeline, edit.recipe);
+      await pipeline
         .resize({ width: w, withoutEnlargement: true })
         .jpeg({ quality: 82, mozjpeg: true })
         .toFile(tmp);
@@ -101,13 +106,15 @@ function isHeicName(name: string | undefined): boolean {
  */
 export async function getViewJpeg(id: string, width: number, filename?: string): Promise<string | null> {
   const w = Math.max(256, Math.min(4096, Math.round(width)));
-  const out = path.join(VIEW_CACHE_DIR, `${id}_${w}.jpg`);
+  const edit = getEdit(id);
+  const stamp = edit?.editedAt ?? 0;
+  const out = path.join(VIEW_CACHE_DIR, stamp ? `${id}_e${stamp}_${w}.jpg` : `${id}_${w}.jpg`);
   if (fs.existsSync(out)) return out;
 
   const src = path.join(ORIGINALS_DIR, id);
   if (!fs.existsSync(src)) return null;
 
-  const key = `view_${id}_${w}`;
+  const key = `view_${id}_${stamp}_${w}`;
   let job = inflight.get(key);
   if (!job) {
     job = schedule(async () => {
@@ -120,9 +127,10 @@ export async function getViewJpeg(id: string, width: number, filename?: string):
       } else {
         pipeline = sharp(src, { failOn: 'none' });
       }
+      pipeline = pipeline.rotate();
+      if (edit) pipeline = await applyRecipe(pipeline, edit.recipe);
       const tmp = `${out}.${process.pid}.tmp`;
       await pipeline
-        .rotate()
         .resize({ width: w, withoutEnlargement: true })
         .jpeg({ quality: 86, mozjpeg: true })
         .toFile(tmp);

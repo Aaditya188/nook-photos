@@ -86,10 +86,15 @@ export const Tile = memo(function Tile({
   const ref = useRef<HTMLButtonElement | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const w = gridThumbW();
+  const e = p.editedAt ? ':' + p.editedAt : '';
   const { src, failed } = useLazyBlob(
     ref,
-    'thumb:' + p.id + ':' + w,
-    p.thumbUrl + (p.thumbUrl.includes('?') ? '&' : '?') + 'w=' + w,
+    'thumb:' + p.id + ':' + w + e,
+    p.thumbUrl +
+      (p.thumbUrl.includes('?') ? '&' : '?') +
+      'w=' +
+      w +
+      (p.editedAt ? '&e=' + p.editedAt : ''),
   );
 
   const cls =

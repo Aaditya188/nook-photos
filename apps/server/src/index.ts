@@ -19,6 +19,7 @@ import { ORIGIN, PORT, ORIGINALS_DIR } from './config.js';
 import { authorizePhoto } from './db.js';
 import { getSizedThumb, getViewJpeg } from './thumbs.js';
 import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
+import { annotatePhotos, clearEdit, getEdit, sanitizeRecipe, setEdit } from './edits.js';
 
 // The web dashboard served at /: the built React app (apps/web/dist) by
 // default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
@@ -122,15 +123,66 @@ app.post('/api/login', async (req, reply) => {
   return reply.send(text);
 });
 
+/**
+ * Non-destructive edits: recipes stored gateway-side; renders pick them up
+ * automatically (edit timestamps are part of the cache keys). The library
+ * proxy annotates photos with `editedAt` so clients can cache-bust.
+ */
+app.get<{ Params: { id: string } }>('/api/photos/:id/edit', async (req, reply) => {
+  const photo = authorizePhoto(bearer(req), req.params.id);
+  if (!photo) return reply.code(404).send({ error: 'not found' });
+  const e = getEdit(req.params.id);
+  return reply.send(e ? { edited: true, recipe: e.recipe, editedAt: e.editedAt } : { edited: false });
+});
+
+app.put<{ Params: { id: string } }>('/api/photos/:id/edit', async (req, reply) => {
+  const photo = authorizePhoto(bearer(req), req.params.id);
+  if (!photo) return reply.code(404).send({ error: 'not found' });
+  if (photo.mediaType === 'video') return reply.code(400).send({ error: 'videos are not editable yet' });
+  const recipe = sanitizeRecipe(req.body);
+  if (!recipe) {
+    // A no-op recipe is a revert.
+    clearEdit(req.params.id);
+    return reply.send({ edited: false });
+  }
+  const editedAt = setEdit(req.params.id, recipe);
+  return reply.send({ edited: true, recipe, editedAt });
+});
+
+app.delete<{ Params: { id: string } }>('/api/photos/:id/edit', async (req, reply) => {
+  const photo = authorizePhoto(bearer(req), req.params.id);
+  if (!photo) return reply.code(404).send({ error: 'not found' });
+  clearEdit(req.params.id);
+  return reply.send({ edited: false });
+});
+
+/** Library proxy with editedAt annotation (clients use it to cache-bust). */
+app.get('/api/library', async (req, reply) => {
+  const res = await fetch(`${ORIGIN}/api/library`, {
+    headers: { Authorization: String(req.headers['authorization'] ?? '') },
+  });
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) {
+    const body = await res.text();
+    return reply
+      .code(res.status)
+      .header('Content-Type', res.headers.get('content-type') ?? 'application/json')
+      .send(body);
+  }
+  const json = (await res.json()) as { photos?: { id: string }[] };
+  if (Array.isArray(json.photos)) json.photos = annotatePhotos(json.photos);
+  return reply.send(json);
+});
+
 /** Size-aware thumbnail: /api/photos/:id/thumb?w=NNN → sharp resize + cache. */
-app.get<{ Params: { id: string }; Querystring: { w?: string } }>(
+app.get<{ Params: { id: string }; Querystring: { w?: string; raw?: string } }>(
   '/api/photos/:id/thumb',
   async (req, reply) => {
     const photo = authorizePhoto(bearer(req), req.params.id);
     if (!photo) return reply.code(404).send({ error: 'not found' });
 
     const requested = Number(req.query.w) || 256;
-    const file = await getSizedThumb(req.params.id, requested);
+    // raw=1: the pristine, unedited render (the editor's base image).
+    const file = await getSizedThumb(req.params.id, requested, req.query.raw === '1');
     if (!file) {
       // No local source (e.g. metadata-only video) → fall back to the origin's thumb.
       return reply.from(`/api/photos/${req.params.id}/thumb`);

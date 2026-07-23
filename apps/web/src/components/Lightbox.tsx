@@ -16,6 +16,7 @@ import { useActions, useLibraryQ } from '../state/data';
 import { useModals } from '../state/ui';
 import { useView } from '../state/view';
 import { getBlobUrl } from '../lib/blobCache';
+import { Editor } from './Editor';
 import { deletedDaysLeft, fmtDuration, fmtExposure, fmtSizeMB } from '../lib/format';
 import {
   ICON,
@@ -38,6 +39,8 @@ const SVG_BACK_ARROW =
   '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m0 0l6.5 6.5M5 12l6.5-6.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SVG_PLAY =
   '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8"/><path d="M10 8.8l5 3.2-5 3.2z" fill="currentColor"/></svg>';
+const SVG_EDIT =
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h9M17.5 8H20M4 16h2.5M11 16h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15.2" cy="8" r="2.1" stroke="currentColor" stroke-width="1.8"/><circle cx="8.8" cy="16" r="2.1" stroke="currentColor" stroke-width="1.8"/></svg>';
 
 export function Lightbox({
   serverName,
@@ -53,6 +56,7 @@ export function Lightbox({
   const [infoOpen, setInfoOpen] = useState(() => localStorage.getItem('nookLbInfo') === '1');
   const [menuOpen, setMenuOpen] = useState(false);
   const [slideshow, setSlideshow] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const p = lightboxId
     ? currentList.find((x) => x.id === lightboxId) ||
@@ -172,6 +176,11 @@ export function Lightbox({
                 () => actions.toggleFavorite(p),
                 { active: !!p.favorite },
               )}
+            {!deleted && p.mediaType !== 'video'
+              ? topBtn('Edit', SVG_EDIT, () => setEditing(true), {
+                  disabled: p.uploadState !== 'complete',
+                })
+              : null}
             {topBtn('Download', SVG_DOWNLOAD, download, { disabled: p.uploadState !== 'complete' })}
             {topBtn('Info (i)', SVG_INFO, toggleInfo, { active: infoOpen })}
             {deleted
@@ -213,7 +222,7 @@ export function Lightbox({
         </div>
 
         <div className="lb-stage" onClick={() => menuOpen && setMenuOpen(false)}>
-          <Stage key={p.id + ':' + p.uploadState} photo={p} />
+          <Stage key={p.id + ':' + p.uploadState + ':' + (p.editedAt ?? 0)} photo={p} />
         </div>
 
         <button type="button" className="lb-btn lb-prev" aria-label="Previous photo" onClick={() => stepLightbox(-1)}>
@@ -229,6 +238,7 @@ export function Lightbox({
       </div>
 
       {infoOpen ? <InfoDrawer photo={p} serverName={serverName} onClose={toggleInfo} /> : null}
+      {editing ? <Editor photo={p} onClose={() => setEditing(false)} /> : null}
     </div>
   );
 }
@@ -308,11 +318,15 @@ function ImageStage({ photo: p }: { photo: PhotoRecord }) {
   useEffect(() => {
     let alive = true;
     let fullShown = false;
-    getBlobUrl('mid:' + p.id, p.thumbUrl + '?w=1024', { priority: true }).then((u) => {
+    const stamp = p.editedAt ?? 0;
+    const bust = stamp ? '&e=' + stamp : '';
+    getBlobUrl('mid:' + p.id + ':' + stamp, p.thumbUrl + '?w=1024' + bust, { priority: true }).then((u) => {
       if (alive && u && !fullShown) setSrc(u);
     });
     if (p.uploadState === 'complete') {
-      getBlobUrl('full:' + p.id, '/api/photos/' + p.id + '/view?w=3000', { priority: true }).then((u) => {
+      getBlobUrl('full:' + p.id + ':' + stamp, '/api/photos/' + p.id + '/view?w=3000' + bust, {
+        priority: true,
+      }).then((u) => {
         if (alive && u) {
           fullShown = true;
           setSrc(u);
@@ -322,7 +336,7 @@ function ImageStage({ photo: p }: { photo: PhotoRecord }) {
     return () => {
       alive = false;
     };
-  }, [p.id, p.thumbUrl, p.uploadState]);
+  }, [p.id, p.thumbUrl, p.uploadState, p.editedAt]);
 
   return (
     <div className="lb-img-wrap">

@@ -23,8 +23,8 @@ function MemCard({
   const ref = useRef<HTMLButtonElement | null>(null);
   const { src } = useLazyBlob(
     ref,
-    'thumb:' + photo.id + ':384',
-    photo.thumbUrl + '?w=384',
+    'thumb:' + photo.id + ':384' + (photo.editedAt ? ':' + photo.editedAt : ''),
+    photo.thumbUrl + '?w=384' + (photo.editedAt ? '&e=' + photo.editedAt : ''),
   );
   return (
     <button ref={ref} type="button" className="mem-card" onClick={onClick}>
