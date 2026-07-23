@@ -3233,3 +3233,246 @@ h3.day-header {
 
 .ed-preset:hover .ed-preset-thumb { transform: scale(1.05); }
 .ed-preset-name { font-size: 12px; color: rgba(255, 255, 255, 0.75); font-weight: 600; }
+
+/* ------------------------------------------------------- profile menu (foot) */
+
+.profile-menu { position: relative; }
+
+.pm-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: var(--surface-3);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.14s ease;
+}
+
+.pm-trigger:hover, .pm-trigger.open { background: var(--hover); }
+
+.pm-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #63e39a, #2f8f5c);
+  color: #06140c;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pm-name {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-chevron { flex: none; color: var(--text-45); }
+
+.pm-popover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+
+.pm-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pm-item:hover { background: var(--hover); }
+.pm-item.danger { color: var(--pink); }
+.pm-item-ico { width: 19px; height: 19px; color: var(--text-60); flex: none; }
+.pm-item.danger .pm-item-ico { color: var(--pink); }
+.pm-item-ico svg { width: 19px; height: 19px; display: block; }
+
+.pm-theme {
+  margin: 4px 0;
+  padding: 8px 4px 4px;
+  border-top: 0.5px solid var(--hairline);
+  border-bottom: 0.5px solid var(--hairline);
+}
+
+.pm-theme-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-45);
+  padding: 0 7px 6px;
+}
+
+.pm-radio-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13.5px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pm-radio-row:hover { background: var(--hover); }
+.pm-radio-row span:nth-child(2) { flex: 1; }
+.pm-radio-ico { width: 18px; height: 18px; color: var(--text-60); flex: none; }
+.pm-radio-ico svg { width: 18px; height: 18px; display: block; }
+.pm-radio-row.active .pm-radio-ico { color: var(--green); }
+
+.pm-radio {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--text-45);
+  position: relative;
+}
+
+.pm-radio.on { border-color: var(--green); }
+.pm-radio.on::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+/* ------------------------------------------------------------ settings page */
+
+.settings {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 8px;
+}
+
+.settings-rail {
+  flex: none;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: sticky;
+  top: calc(var(--topbar-h, 57px) + var(--toolbar-h, 66px) + 60px);
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: none;
+  background: none;
+  color: var(--text-72);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-tab:hover { background: var(--hover); }
+.settings-tab.active { background: var(--sel-bg); color: var(--green); }
+.settings-tab-ico { width: 19px; height: 19px; flex: none; }
+.settings-tab-ico svg { width: 19px; height: 19px; display: block; }
+
+.settings-panel { flex: 1; min-width: 0; max-width: 620px; }
+
+.set-section { display: flex; flex-direction: column; gap: 14px; }
+.set-section-head { display: flex; align-items: center; justify-content: space-between; }
+.set-h { font-size: 22px; font-weight: 750; letter-spacing: -0.5px; margin: 0; }
+.set-subh { font-size: 15px; font-weight: 700; margin: 8px 0 0; }
+.set-form { display: flex; flex-direction: column; gap: 12px; }
+
+.set-field { display: flex; flex-direction: column; gap: 6px; }
+.set-field span { font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-45); }
+.set-field input {
+  background: var(--input-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  color: var(--text);
+  font-size: 14.5px;
+  padding: 12px 14px;
+}
+.set-field input:focus { outline: 2px solid var(--green); outline-offset: 0; border-color: transparent; }
+
+.set-note { font-size: 13px; color: var(--text-55); }
+.set-actions { display: flex; gap: 10px; margin-top: 4px; }
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--surface-3);
+  border: 0.5px solid var(--hairline);
+  border-radius: 14px;
+}
+
+.set-row-txt { flex: 1; min-width: 0; }
+.set-row-title { font-size: 14.5px; font-weight: 650; }
+.set-row-sub { font-size: 12.5px; color: var(--text-55); margin-top: 2px; line-height: 1.45; }
+
+.set-list { display: flex; flex-direction: column; gap: 8px; }
+.set-listrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  background: var(--surface-3);
+  border: 0.5px solid var(--hairline);
+  border-radius: 12px;
+}
+
+.set-server-card {
+  padding: 18px;
+  background: var(--surface-3);
+  border: 0.5px solid var(--hairline);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-server-name { font-size: 17px; font-weight: 700; }
+.set-storage-bar { height: 8px; border-radius: 5px; background: rgba(127,127,135,0.18); overflow: hidden; margin: 8px 0 2px; }
+.set-storage-fill { height: 100%; background: var(--green); border-radius: 5px; }
+
+@media (max-width: 720px) {
+  .settings { flex-direction: column; }
+  .settings-rail { flex-direction: row; width: 100%; overflow-x: auto; position: static; }
+}

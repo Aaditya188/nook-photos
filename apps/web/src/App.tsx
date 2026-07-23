@@ -32,7 +32,6 @@ import { dayLabelOf } from './lib/format';
 import { AuthScreen } from './components/AuthScreen';
 import { BootLoader, Sidebar, TopBar, type NavGroup } from './components/chrome';
 import { Lightbox } from './components/Lightbox';
-import { useAccountModals } from './components/AccountModals';
 import {
   AlbumView,
   AlbumsView,
@@ -52,6 +51,7 @@ import { Onboarding } from './views/Onboarding';
 import { SharedAlbum } from './views/SharedAlbum';
 import { BackupHealthView } from './views/BackupHealth';
 import { TripsView, TripView } from './views/Trips';
+import { SettingsView } from './views/Settings';
 
 // Leaflet is heavy — the map route loads on demand.
 const MapView = lazy(() => import('./views/MapView').then((m) => ({ default: m.MapView })));
@@ -123,7 +123,6 @@ function Shell() {
   const aiEnabled = !!serverQ.data?.ai;
   const peopleQ = usePeopleQ(aiEnabled);
   const placesQ = usePlacesQ(aiEnabled);
-  const { openAccount } = useAccountModals();
   const [navOpen, setNavOpen] = useState(false);
   const contentRef = useRef<HTMLElement | null>(null);
   const location = useLocation();
@@ -216,19 +215,10 @@ function Shell() {
         pending={pending}
         items={visible.length}
         fetching={libQ.isFetching && !libQ.data}
-        onOpenAccount={openAccount}
         onToggleNav={() => setNavOpen((v) => !v)}
       />
       <div className="shell">
-        <Sidebar
-          groups={navGroups}
-          open={navOpen}
-          onClose={() => setNavOpen(false)}
-          status={statusQ.data}
-          online={online}
-          serverName={serverName}
-          onOpenAccount={openAccount}
-        />
+        <Sidebar groups={navGroups} open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="content" id="content" ref={contentRef}>
           <SearchBox photos={visible} />
           {searchResults !== null ? (
@@ -255,6 +245,8 @@ function Shell() {
               />
               <Route path="/trips" element={<TripsView />} />
               <Route path="/trip/:id" element={<TripView />} />
+              <Route path="/settings" element={<SettingsView />} />
+              <Route path="/settings/:section" element={<SettingsView />} />
               <Route path="/backup" element={<BackupHealthView />} />
               <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />

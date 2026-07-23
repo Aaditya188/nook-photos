@@ -10,7 +10,7 @@
  * background-while-closed backup needs a dev/EAS build; the preference is stored
  * and honored there.
  */
-import * as MediaLibrary from 'expo-media-library/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';

@@ -6,7 +6,7 @@
  * MediaLibrary.deleteAssetsAsync, which shows the OS's own confirmation
  * dialog — a second safety gate on top of ours.
  */
-import * as MediaLibrary from 'expo-media-library/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import type { NookClient } from '@nook/core';
 
 export interface FreeableScan {

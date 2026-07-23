@@ -9,6 +9,7 @@ import type { Person, StatusRecord } from '@nook/core';
 import { fmtBytes, fmtCount } from '../lib/format';
 import { ICON, SVG_BACK, THEME_ICONS, Svg } from '../lib/icons';
 import { useLazyBlob } from './Tile';
+import { ProfileMenu } from './ProfileMenu';
 import { useTheme } from '../hooks/useTheme';
 import { useAuth } from '../state/auth';
 import { useToast } from '../state/ui';
@@ -21,7 +22,6 @@ export function TopBar({
   pending,
   items,
   fetching,
-  onOpenAccount,
   onToggleNav,
 }: {
   status: StatusRecord | undefined;
@@ -29,10 +29,8 @@ export function TopBar({
   pending: number;
   items: number;
   fetching: boolean;
-  onOpenAccount: () => void;
   onToggleNav: () => void;
 }) {
-  const { user, signOut } = useAuth();
   const { pref, cycle } = useTheme();
   const toast = useToast();
 
@@ -95,31 +93,6 @@ export function TopBar({
         <div className="storage-summary">
           {st ? fmtBytes(st.usedBytes) + ' of ' + fmtBytes(st.totalBytes) : ''}
         </div>
-        {user ? (
-          <div className="user-chip">
-            <button type="button" className="user-name-btn" title="Account settings" onClick={onOpenAccount}>
-              <span className="user-name">{user.displayName || user.username || 'Account'}</span>
-            </button>
-            <button type="button" className="signout-btn" aria-label="Sign out" title="Sign out" onClick={signOut}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M14 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H14"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M13 12h8m0 0l-3-3m3 3l-3 3"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
-        ) : null}
       </div>
     </header>
   );
@@ -164,25 +137,11 @@ export function Sidebar({
   groups,
   open,
   onClose,
-  status,
-  online,
-  serverName,
-  onOpenAccount,
 }: {
   groups: NavGroup[];
   open: boolean;
   onClose: () => void;
-  status: StatusRecord | undefined;
-  online: boolean;
-  serverName: string;
-  onOpenAccount: () => void;
 }) {
-  const st = status?.storage;
-  const total = Number(st?.totalBytes) || 0;
-  const pct = (bytes: number) => {
-    if (!(bytes > 0) || !(total > 0)) return '0%';
-    return Math.max((bytes / total) * 100, 0.75) + '%';
-  };
   return (
     <>
       <div className={'sidebar-scrim' + (open ? ' show' : '')} onClick={onClose} />
@@ -210,26 +169,7 @@ export function Sidebar({
           ))}
         </nav>
         <div className="sidebar-foot">
-          <button type="button" className="mini-server" title="Server info" onClick={onOpenAccount}>
-            <div className="mini-server-head">
-              <span className={'mini-dot' + (online ? '' : ' off')} />
-              <span className="mini-server-name">{serverName}</span>
-            </div>
-            <div className="mini-bar" role="img" aria-label="Storage usage">
-              <div className="mini-seg mini-seg-photos" style={{ width: pct(Number(st?.photoBytes) || 0) }} />
-              <div className="mini-seg mini-seg-videos" style={{ width: pct(Number(st?.videoBytes) || 0) }} />
-            </div>
-            <div className="mini-server-sub">
-              {st
-                ? fmtBytes(st.usedBytes) +
-                  ' of ' +
-                  fmtBytes(st.totalBytes) +
-                  (status?.server?.version ? ' · v' + status.server.version : '')
-                : online
-                  ? '—'
-                  : 'Reconnecting…'}
-            </div>
-          </button>
+          <ProfileMenu onNavigate={onClose} />
         </div>
       </aside>
     </>
