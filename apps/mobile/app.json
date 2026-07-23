@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Nook Photos",
+    "slug": "nook-photos",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "nookphotos",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/icon.png",
+      "supportsTablet": true,
+      "bundleIdentifier": "in.ghantacoder.nookphotos",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Nook Photos needs access to your photo library to back up your photos and videos to your server.",
+        "NSFaceIDUsageDescription": "Nook Photos uses Face ID to unlock Hidden and Locked albums."
+      }
+    },
+    "android": {
+      "package": "in.ghantacoder.nookphotos",
+      "adaptiveIcon": {
+        "backgroundColor": "#0070eb",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-video",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Nook Photos needs access to your photo library to back it up to your server.",
+          "savePhotosPermission": "Nook Photos needs permission to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Nook Photos uses Face ID to unlock Hidden and Locked albums."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0070eb",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": true
+    }
+  }
+}

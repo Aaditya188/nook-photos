@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nook — Photos</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2357d38a'/%3E%3Cpath d='M7 22l5.5-5.5 3.5 3.5 5-5 4 4' stroke='%2306140c' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='11.5' cy='10.5' r='2' fill='%2306140c'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css?v=8">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    (function () {
+      try {
+        var p = localStorage.getItem('nookTheme') || 'dark';
+        var t = p === 'light' || p === 'dark'
+          ? p
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+
+  <div class="boot-loader" id="bootLoader" role="status" aria-label="Loading your library">
+    <div class="nook-loader nook-loader-lg" aria-hidden="true">
+      <span class="nook-arc nook-arc-1"></span>
+      <span class="nook-arc nook-arc-2"></span>
+      <span class="nook-arc nook-arc-3"></span>
+      <span class="nook-glyph">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.1c.26 0 .52.09.73.27l7.5 6.43c.49.42.19 1.22-.45 1.22h-1.28v7.73c0 .69-.56 1.25-1.25 1.25h-3.5v-5.5c0-.97-.78-1.75-1.75-1.75s-1.75.78-1.75 1.75V20h-3.5c-.69 0-1.25-.56-1.25-1.25v-7.73H4.22c-.64 0-.94-.8-.45-1.22l7.5-6.43c.21-.18.47-.27.73-.27z"/></svg>
+      </span>
+    </div>
+    <div class="boot-wordmark">nook</div>
+  </div>
+
+  <div class="auth-screen hidden" id="authScreen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-mark" aria-hidden="true">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="5" stroke="#06140c" stroke-width="2"/>
+            <circle cx="9" cy="9" r="1.7" fill="#06140c"/>
+            <path d="M5 16.5l4-4 3 3 3.5-3.5 3.5 3.5" stroke="#06140c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="auth-wordmark">nook</div>
+      </div>
+
+      <h1 class="auth-title" id="authTitle">Sign in</h1>
+      <p class="auth-sub" id="authSub"></p>
+
+      <form class="auth-form" id="authForm" novalidate>
+        <label class="field hidden" id="fieldDisplayName">
+          <span>Name</span>
+          <input type="text" id="authDisplayName" autocomplete="name" placeholder="Your name">
+        </label>
+        <label class="field">
+          <span>Username</span>
+          <input type="text" id="authUsername" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="username">
+        </label>
+        <label class="field hidden" id="fieldEmail">
+          <span>Email <em>optional</em></span>
+          <input type="email" id="authEmail" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" id="authPassword" autocomplete="current-password" placeholder="Password">
+        </label>
+
+        <div class="auth-error hidden" id="authError" role="alert"></div>
+
+        <button type="submit" class="auth-submit" id="authSubmit">Sign in</button>
+      </form>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="5" stroke="#06140c" stroke-width="2"/>
+          <circle cx="9" cy="9" r="1.7" fill="#06140c"/>
+          <path d="M5 16.5l4-4 3 3 3.5-3.5 3.5 3.5" stroke="#06140c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="wordmark">nook</div>
+    </div>
+
+    <div class="status-pill offline" id="statusPill">
+      <span class="dot" id="statusDot"></span>
+      <span class="nook-loader nook-loader-sm hidden" id="pillLoader" aria-hidden="true">
+        <span class="nook-arc nook-arc-1"></span>
+        <span class="nook-arc nook-arc-2"></span>
+        <span class="nook-arc nook-arc-3"></span>
+        <span class="nook-glyph">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.1c.26 0 .52.09.73.27l7.5 6.43c.49.42.19 1.22-.45 1.22h-1.28v7.73c0 .69-.56 1.25-1.25 1.25h-3.5v-5.5c0-.97-.78-1.75-1.75-1.75s-1.75.78-1.75 1.75V20h-3.5c-.69 0-1.25-.56-1.25-1.25v-7.73H4.22c-.64 0-.94-.8-.45-1.22l7.5-6.43c.21-.18.47-.27.73-.27z"/></svg>
+        </span>
+      </span>
+      <span id="statusText">Connecting&hellip;</span>
+    </div>
+
+    <div class="topbar-right">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch theme" title="Theme"></button>
+      <div class="storage-summary" id="storageSummary"></div>
+      <div class="user-chip hidden" id="userChip">
+        <button type="button" class="user-name-btn" id="accountBtn" title="Account settings">
+          <span class="user-name" id="userName"></span>
+        </button>
+        <button type="button" class="signout-btn" id="signoutBtn" aria-label="Sign out" title="Sign out">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M14 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13 12h8m0 0l-3-3m3 3l-3 3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell">
+    <div class="sidebar-scrim" id="sidebarScrim"></div>
+    <aside class="sidebar" id="sidebar" aria-label="Sections">
+      <nav class="nav" id="nav"></nav>
+      <div class="sidebar-foot">
+        <button type="button" class="mini-server" id="miniServer" title="Server info">
+          <div class="mini-server-head">
+            <span class="mini-dot" id="miniDot"></span>
+            <span class="mini-server-name" id="miniServerName">nook.local</span>
+          </div>
+          <div class="mini-bar" role="img" aria-label="Storage usage">
+            <div class="mini-seg mini-seg-photos" id="miniBarPhotos"></div>
+            <div class="mini-seg mini-seg-videos" id="miniBarVideos"></div>
+          </div>
+          <div class="mini-server-sub" id="miniServerSub">&mdash;</div>
+        </button>
+      </div>
+    </aside>
+
+    <main class="content" id="content">
+      <div class="toolbar">
+        <div class="searchbox">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/>
+            <path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+          <input id="searchInput" type="search" placeholder="Search your photos, people, places…" autocomplete="off" spellcheck="false" />
+          <button type="button" id="searchClear" class="search-clear hidden" aria-label="Clear search">&times;</button>
+        </div>
+      </div>
+
+      <div class="view-head" id="viewHead"></div>
+
+      <div id="grid" aria-label="Photo library"></div>
+
+      <div id="emptyState" class="empty hidden">
+        <div class="empty-glyph" id="emptyGlyph" aria-hidden="true"></div>
+        <h2 id="emptyTitle">No photos yet</h2>
+        <p id="emptyText">Open Nook on your iPhone to back up your library.</p>
+      </div>
+    </main>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <div class="lb-backdrop" id="lbBackdrop"></div>
+
+    <div class="lb-stage-wrap">
+      <div class="lb-stage" id="lbStage"></div>
+      <button type="button" class="lb-btn lb-close" id="lbClose" aria-label="Close viewer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="lb-btn lb-prev" id="lbPrev" aria-label="Previous photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14.5 5.5L8 12l6.5 6.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="lb-btn lb-next" id="lbNext" aria-label="Next photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9.5 5.5L16 12l-6.5 6.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <aside class="lb-info">
+      <div class="lb-filename" id="lbFilename"></div>
+      <div class="lb-datetime" id="lbDatetime"></div>
+      <div class="lb-rows" id="lbRows"></div>
+      <div class="lb-section" id="lbExifSection">
+        <div class="lb-section-title">Camera</div>
+        <div class="lb-rows" id="lbExifRows"></div>
+      </div>
+      <div class="lb-section" id="lbLocSection">
+        <div class="lb-section-title">Location</div>
+        <div class="lb-rows" id="lbLocRows"></div>
+        <a class="lb-map-link" id="lbMapLink" target="_blank" rel="noopener">View on map</a>
+      </div>
+      <div class="lb-backup" id="lbBackup"></div>
+      <div class="lb-actions" id="lbActions"></div>
+    </aside>
+  </div>
+
+  <!-- Floating multi-select action bar (shown in Select mode) -->
+  <div id="selectionBar" class="selection-bar hidden" role="toolbar" aria-label="Selection actions"></div>
+
+  <!-- Generic modal host: prompt / confirm / account / users / add-to-album -->
+  <div id="modalRoot" class="modal-root hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card" id="modalCard"></div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script type="module" src="/app.js?v=18"></script>
+</body>
+</html>

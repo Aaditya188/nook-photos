@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Albums - Lumina Photos</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#6664e4",
+                    "surface-dim": "#dad9df",
+                    "on-secondary-fixed": "#0c006a",
+                    "tertiary-fixed-dim": "#ffb595",
+                    "inverse-on-surface": "#f1f0f5",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed-variant": "#004493",
+                    "on-error-container": "#93000a",
+                    "surface": "#faf9fe",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#e3e2e7",
+                    "tertiary": "#9e3d00",
+                    "on-secondary-container": "#fffbff",
+                    "surface-container": "#eeedf3",
+                    "secondary-fixed": "#e2dfff",
+                    "surface-tint": "#005bc1",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#fefcff",
+                    "surface-container-high": "#e9e7ed",
+                    "secondary": "#4c4aca",
+                    "outline": "#717786",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-highest": "#e3e2e7",
+                    "surface-container-low": "#f4f3f8",
+                    "on-secondary-fixed-variant": "#3631b4",
+                    "on-tertiary-fixed-variant": "#7c2e00",
+                    "inverse-primary": "#adc6ff",
+                    "tertiary-container": "#c64f00",
+                    "error": "#ba1a1a",
+                    "primary-fixed-dim": "#adc6ff",
+                    "background": "#faf9fe",
+                    "on-primary-fixed": "#001a41",
+                    "surface-bright": "#faf9fe",
+                    "on-surface": "#1a1b1f",
+                    "on-background": "#1a1b1f",
+                    "primary-container": "#0070eb",
+                    "outline-variant": "#c1c6d7",
+                    "on-tertiary-container": "#fffbff",
+                    "tertiary-fixed": "#ffdbcc",
+                    "secondary-fixed-dim": "#c2c1ff",
+                    "on-tertiary-fixed": "#351000",
+                    "on-primary": "#ffffff",
+                    "on-surface-variant": "#414755",
+                    "primary": "#0058bc",
+                    "inverse-surface": "#2f3034",
+                    "primary-fixed": "#d8e2ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "grid_gutter": "2px",
+                    "lg": "24px",
+                    "base": "4px",
+                    "edge_margin": "16px",
+                    "xl": "32px",
+                    "sm": "12px",
+                    "md": "16px",
+                    "xs": "8px"
+            },
+            "fontFamily": {
+                    "display": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "headline-md": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "headline-lg": [
+                            "Plus Jakarta Sans"
+                    ],
+                    "label-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "display": [
+                            "34px",
+                            {
+                                    "lineHeight": "41px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-md": [
+                            "22px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "15px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-sm": [
+                            "11px",
+                            {
+                                    "lineHeight": "13px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "17px",
+                            {
+                                    "lineHeight": "24px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-lg": [
+                            "28px",
+                            {
+                                    "lineHeight": "34px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "label-md": [
+                            "13px",
+                            {
+                                    "lineHeight": "18px",
+                                    "letterSpacing": "0.01em",
+                                    "fontWeight": "500"
+                            }
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen pb-[80px]">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md dark:bg-surface-container-lowest/80 border-b border-outline-variant/30 dark:border-outline/20">
+<div class="flex justify-between items-center px-edge_margin h-14 w-full">
+<div class="font-display text-headline-md font-bold text-on-surface dark:text-surface-bright">
+                Lumina Photos
+            </div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-variant/50 transition-colors active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">search</span>
+</button>
+</div>
+</header>
+<main class="pt-16 px-edge_margin max-w-4xl mx-auto space-y-xl mt-lg">
+<!-- My Albums Grid -->
+<section>
+<div class="flex justify-between items-end mb-sm">
+<h2 class="font-headline-md text-headline-md text-on-surface">My Albums</h2>
+<button class="font-label-md text-label-md text-primary font-medium hover:text-primary-container transition-colors">See All</button>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-md">
+<!-- Album Card 1 -->
+<div class="group cursor-pointer">
+<div class="aspect-square rounded-xl overflow-hidden mb-xs relative bg-surface-container">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A pristine, high-resolution photograph of a serene mountain landscape bathed in the soft, warm light of golden hour. The image emphasizes clarity and a modern, high-end aesthetic with deep, rich greens of pine trees contrasting against a bright, clear blue sky. The composition is flawless, reflecting professional photography standards ideal for a gallery application." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaeZMvhHwACzbJC_oRjl4uLhkd30P5A0FV5G23HMUXY9xAXScWZZh15K8zvwEquB3Ka2YQsBj7TUdkTpfDCx2KiWfreJ362xw23i1npFlQa6UljA7fsUOCmhvR4eQ4KtOKhPxfXF9ddP_l5RbnYsOWlEAeY3vsUWEcNB7Ai8hNsImZn4aqlPrFbVgjfT-ZVDIobYXdaaohNagIj-8xnuSvShSnz6ykFh8G0vDEe_25Ztigzcx1LV1_XQ"/>
+</div>
+<h3 class="font-body-md text-body-md font-medium text-on-surface">Recents</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">4,203</p>
+</div>
+<!-- Album Card 2 -->
+<div class="group cursor-pointer">
+<div class="aspect-square rounded-xl overflow-hidden mb-xs relative bg-surface-container">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A meticulously curated flat lay of minimalist travel essentials on a clean white surface. Items include a sleek silver camera, a leather passport holder, and premium polarized sunglasses. The lighting is bright and even, casting subtle, soft shadows, embodying a clean, sophisticated, and modern visual style typical of luxury lifestyle photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDGqEjBS3wOdQ1C_gPZii79LFIgF1myBw6rS1ih30iOPmARFXoTVZXEV6wiLV10fspDkOiraYXKvIIl2GTheSTI_rzPCOPdEWDqqn7rewWLzaOtz-praiClu4swqnp2A5XwjD0Ajypl9Ona31peomUi_TkbsWoIzv5o2StwO8ouK0fjNBXWgLhsbNM6RNKDsrJU7N1kJGO2RDn-1yVS6ExhC_2Ae5zW15uraRzC1HaMUZw2UQIEQW3Zg"/>
+</div>
+<h3 class="font-body-md text-body-md font-medium text-on-surface">Travel 2023</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">142</p>
+</div>
+<!-- Album Card 3 -->
+<div class="group cursor-pointer hidden md:block">
+<div class="aspect-square rounded-xl overflow-hidden mb-xs relative bg-surface-container">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A beautifully composed portrait of a fluffy golden retriever dog sitting in a sunlit modern apartment. The background features stylish, minimalist furniture in light wood tones and a large green monstera plant. The aesthetic is bright, airy, and high-quality, capturing a sense of warmth and sophisticated modern living." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyZ5njQs6K4RATUPpQQr4n2u5sUVQlD0qMiIRfl_z_MiQleL67jHCQYAMxRbMGAGVdDiTspWCgW2lhyuRb6Ho2rBu-eJLEpkHn3bWI_i4kRJ9o4fpgSIbo86JHxN6K6C7bDAMOHzdLzlbaL47xcG9-5eTyvyEdA8bVYcSOMfOERqNZ2gy49AeKtcBjUHCBz17oMVoLs_X15mPqH_337GnAV2MGmrt496LjTOoGPnQuT_HB5HgLBgcIfQ"/>
+</div>
+<h3 class="font-body-md text-body-md font-medium text-on-surface">Pets</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">89</p>
+</div>
+</div>
+</section>
+<!-- Shared Albums -->
+<section>
+<div class="flex justify-between items-end mb-sm">
+<h2 class="font-headline-md text-headline-md text-on-surface">Shared Albums</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-sm">
+<!-- Shared Album 1 -->
+<div class="group cursor-pointer relative bg-surface-container rounded-xl p-xs border border-outline-variant/30 hover:bg-surface-variant/30 transition-colors">
+<div class="aspect-video rounded-lg overflow-hidden mb-xs relative">
+<img class="w-full h-full object-cover" data-alt="A vibrant, high-quality photograph of a bustling outdoor dinner party set against a picturesque sunset. The scene features a long wooden table adorned with elegant tableware, string lights overhead, and people casually interacting. The aesthetic is lively yet sophisticated, utilizing a warm color palette that suggests community and modern lifestyle." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQ17geF6a_1M4qu8zeUTltbmfZalv8KICg9dNEYtgxiguxUCxzGorJvrQJC83iNrqjHgUgUtI7yZk0dVDO3Bgum4PokS-FvVTXNBpRYV81llkjzNH6cxHX9TSzAvWJQzRFi8VxEmby4hlkYCcA8jl-Hg-ibjOUvn-rxajjnfcnUZW9r_ckqaA585_9Yvgu3UIJZs7PWg38FFvVsNe2iRRLplzUaOcTOM_59NsZf7uait1-e2dE9-Qubg"/>
+<!-- Avatars -->
+<div class="absolute bottom-2 left-2 flex -space-x-2">
+<img class="w-6 h-6 rounded-full border-2 border-surface object-cover" data-alt="A small, circular avatar portrait of a smiling young woman with short dark hair against a solid light blue background. High resolution, clean styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUywp8LQ59iXtRn6qQxJILCh4wNUnd3GRQiOhygqQr9jjotwB_UOdDDqfLrQwG9Accyo2bH__tHu0qegGyjsVRweuhgza8tmrlD80v3uzU5EFnul0QxDkdlWx5qmDm710DK4bPN-3EI5eBM1u6GuWlWTWFt71YukjV2HmIVV_4EZoeHt7pACfYjxOG2O7L2PCx7S0AHAFdT-RzpHJ1bj_fVt-MtC6bFyTkGFJ4nIrKSwzr45HMkksWZQ"/>
+<img class="w-6 h-6 rounded-full border-2 border-surface object-cover" data-alt="A small, circular avatar portrait of a man with glasses and a beard against a solid light grey background. High resolution, clean styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXTLPuGXTacf1bvjWbfONGRs_ybqgOTw5gtFStNm1gmUcosiP5-j2mfWf-xc0SIvYRI0dePPvOwVPeRlRVq-C2RWPolgSLwCByM1QgzmVV5WPqU3eYA0x7Sl-UXQIocKVc94o-PB2nC2ecsIc_dYvIHnYYa5OmwFnE_n1DJgGp1_DjJuv-tZUTUnjH-yNJAWXb-tFjb2CL_66biotvxp6JvGEnjdzo2JOUCDmMJFtjfyZrdVyo-Pu_eA"/>
+</div>
+</div>
+<h3 class="font-label-md text-label-md font-medium text-on-surface truncate px-1">Family Reunion</h3>
+</div>
+<!-- Shared Album 2 -->
+<div class="group cursor-pointer relative bg-surface-container rounded-xl p-xs border border-outline-variant/30 hover:bg-surface-variant/30 transition-colors">
+<div class="aspect-video rounded-lg overflow-hidden mb-xs relative">
+<img class="w-full h-full object-cover" data-alt="An abstract, high-end architectural photograph featuring intersecting glass and steel structures under a clear blue sky. The composition emphasizes sharp lines, minimalism, and a crisp, modern aesthetic suitable for professional design portfolios." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9Fc9Qh5-0Uzh0WJ3rTVf8wOtcCJNuTcGmxjjzRDu9slgmhw977Mk2C21PqGyYkTTt64O7E1V0PHyz3znThTpJZ1dN7dPSbTF9ReXOyAQ7yeHrBIEF-ufyoBueXSn83_srBOgwTD2OgRU4HjO1citMJVnxX05zctDqiHgLGi8g5KTIpjVlP1ZRbeYATRFPSfzK7MD6e8dUiuRDbdhxU-ZiFKHKv-1Tf2MHkPIwI4Uo_GOrfzPL5HiBeQ"/>
+<!-- Avatars -->
+<div class="absolute bottom-2 left-2 flex -space-x-2">
+<img class="w-6 h-6 rounded-full border-2 border-surface object-cover" data-alt="A small, circular avatar portrait of a person with blonde hair against a solid pale yellow background. High resolution, clean styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDy1YOv3QWnVVFN_FRCU9fudyZmBQlZa9xT6qRgaEp4sWim_2BbcHCWAnP_Zbr_qfEXNa4-DAQxTmOeapqb59ZIr7LK40O0aAORsaQsNQM6Bo83C4tRyJyb_AfMeHMyUCkTZfzC5SetjGcy--Mkfx1t0LUssMhQXZ2KY0QJIJ3R9zOYMsGAqVLIM9n97-AhEPDI863H9b-LROQWjATwwFmebcYo3rRNASxei_HZQrnmEs6_u-ZGkd-1ug"/>
+</div>
+</div>
+<h3 class="font-label-md text-label-md font-medium text-on-surface truncate px-1">Design Inspo</h3>
+</div>
+</div>
+</section>
+<!-- Media Types (List Layout - Inset iOS style) -->
+<section>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-sm">Media Types</h2>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">videocam</span>
+<div class="flex-1 border-b border-outline-variant/20 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Videos</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="font-body-md text-body-md mr-1">342</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">person</span>
+<div class="flex-1 border-b border-outline-variant/20 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Selfies</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="font-body-md text-body-md mr-1">1,029</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">smartphone</span>
+<div class="flex-1 border-b border-outline-variant/20 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Screenshots</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="font-body-md text-body-md mr-1">84</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">panorama</span>
+<div class="flex-1 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Panoramas</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="font-body-md text-body-md mr-1">12</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+</div>
+</section>
+<!-- Utilities -->
+<section class="mb-xl">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-sm">Utilities</h2>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">visibility_off</span>
+<div class="flex-1 border-b border-outline-variant/20 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Hidden</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-1 text-outline">lock</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">lock</span>
+<div class="flex-1 border-b border-outline-variant/20 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Locked</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-1 text-outline">lock</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+<a class="flex items-center px-md py-sm hover:bg-surface-variant/30 transition-colors group" href="#">
+<span class="material-symbols-outlined text-primary mr-sm text-[24px]">delete</span>
+<div class="flex-1 py-1 group-last:border-0 flex justify-between items-center">
+<span class="font-body-lg text-body-lg text-on-surface">Recently Deleted</span>
+<div class="flex items-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-1 text-outline">lock</span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</a>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/80 backdrop-blur-md dark:bg-surface-container-lowest/80 border-t border-outline-variant/30 dark:border-outline/20 flex justify-around items-center h-16 px-2 md:hidden">
+<!-- Inactive: Library -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline w-16 h-full tap-highlight-transparent active:bg-surface-variant/30 rounded-lg">
+<span class="material-symbols-outlined text-[24px] mb-1">photo_library</span>
+<span class="font-label-sm text-label-sm">Library</span>
+</button>
+<!-- Active: Albums -->
+<button class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed font-semibold w-16 h-full tap-highlight-transparent active:bg-surface-variant/30 rounded-lg">
+<span class="material-symbols-outlined text-[24px] mb-1" style="font-variation-settings: 'FILL' 1;">subscriptions</span>
+<span class="font-label-sm text-label-sm">Albums</span>
+</button>
+<!-- Inactive: Sharing -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline w-16 h-full tap-highlight-transparent active:bg-surface-variant/30 rounded-lg">
+<span class="material-symbols-outlined text-[24px] mb-1">share</span>
+<span class="font-label-sm text-label-sm">Sharing</span>
+</button>
+<!-- Inactive: Profile -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline w-16 h-full tap-highlight-transparent active:bg-surface-variant/30 rounded-lg">
+<span class="material-symbols-outlined text-[24px] mb-1">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</button>
+</nav>
+</body></html>

@@ -1,0 +1,46 @@
+# deps
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+build/
+web-build/
+.expo/
+.expo-shared/
+apps/mobile/.expo/
+apps/web/dist/
+packages/*/dist/
+
+# native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+ios/
+android/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# server data (never commit the photo store)
+apps/server/data/
+data/

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina Photos - Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#6664e4",
+                        "surface-dim": "#dad9df",
+                        "on-secondary-fixed": "#0c006a",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "inverse-on-surface": "#f1f0f5",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed-variant": "#004493",
+                        "on-error-container": "#93000a",
+                        "surface": "#faf9fe",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e3e2e7",
+                        "tertiary": "#9e3d00",
+                        "on-secondary-container": "#fffbff",
+                        "surface-container": "#eeedf3",
+                        "secondary-fixed": "#e2dfff",
+                        "surface-tint": "#005bc1",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-high": "#e9e7ed",
+                        "secondary": "#4c4aca",
+                        "outline": "#717786",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#e3e2e7",
+                        "surface-container-low": "#f4f3f8",
+                        "on-secondary-fixed-variant": "#3631b4",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "inverse-primary": "#adc6ff",
+                        "tertiary-container": "#c64f00",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#adc6ff",
+                        "background": "#faf9fe",
+                        "on-primary-fixed": "#001a41",
+                        "surface-bright": "#faf9fe",
+                        "on-surface": "#1a1b1f",
+                        "on-background": "#1a1b1f",
+                        "primary-container": "#0070eb",
+                        "outline-variant": "#c1c6d7",
+                        "on-tertiary-container": "#fffbff",
+                        "tertiary-fixed": "#ffdbcc",
+                        "secondary-fixed-dim": "#c2c1ff",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#414755",
+                        "primary": "#0058bc",
+                        "inverse-surface": "#2f3034",
+                        "primary-fixed": "#d8e2ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "grid_gutter": "2px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "edge_margin": "16px",
+                        "xl": "32px",
+                        "sm": "12px",
+                        "md": "16px",
+                        "xs": "8px"
+                    },
+                    "fontFamily": {
+                        "display": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display": ["34px", { "lineHeight": "41px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["15px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "13px", "fontWeight": "600" }],
+                        "body-lg": ["17px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+                        "headline-lg": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .masonry-grid {
+            column-count: 2;
+            column-gap: 2px;
+        }
+        @media (min-width: 768px) {
+            .masonry-grid {
+                column-count: 3;
+            }
+        }
+        @media (min-width: 1024px) {
+            .masonry-grid {
+                column-count: 4;
+            }
+        }
+        .masonry-item {
+            break-inside: avoid;
+            margin-bottom: 2px;
+        }
+        /* System Ultra Thin Material Blur */
+        .glass-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen selection:bg-primary-container selection:text-on-primary-container pb-24 md:pb-0 pt-14 md:pt-0">
+<!-- TopAppBar (Mobile) -->
+<header class="md:hidden bg-surface/80 glass-blur text-primary dark:text-primary-fixed fixed top-0 w-full z-50 border-b border-outline-variant/30 flex justify-between items-center px-edge_margin h-14 w-full">
+<div class="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+<h1 class="font-display text-headline-md font-bold text-on-surface">Lumina Photos</h1>
+<button class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 transition-colors rounded-full active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined">search</span>
+</button>
+</header>
+<!-- Desktop Sidebar/Nav (Web) -->
+<aside class="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-surface-container-low border-r border-outline-variant/30 z-40">
+<div class="px-lg py-xl">
+<h1 class="font-display text-headline-lg font-bold text-on-surface">Lumina</h1>
+</div>
+<div class="px-md mb-lg">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full h-10 pl-10 pr-sm bg-surface-container-high border-none rounded-lg text-body-md placeholder-outline focus:ring-2 focus:ring-primary focus:bg-surface transition-all" placeholder="Search photos..." type="text"/>
+</div>
+</div>
+<nav class="flex-1 px-sm space-y-1">
+<a class="flex items-center gap-md px-md py-sm rounded-lg bg-primary-container text-on-primary-container font-label-md font-semibold" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">photo_library</span>
+                Library
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-colors font-label-md" href="#">
+<span class="material-symbols-outlined">subscriptions</span>
+                Albums
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-colors font-label-md" href="#">
+<span class="material-symbols-outlined">share</span>
+                Sharing
+            </a>
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-colors font-label-md" href="#">
+<span class="material-symbols-outlined">person</span>
+                Profile
+            </a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-64 w-full">
+<!-- Desktop Search/Header (Web Only) -->
+<header class="hidden md:flex items-center justify-between px-xl py-lg sticky top-0 bg-background/90 glass-blur z-30">
+<h2 class="font-display text-display text-on-surface">Library</h2>
+<div class="flex items-center gap-md">
+<button class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">tune</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-variant cursor-pointer">
+<img class="w-full h-full object-cover" data-alt="A sophisticated macro portrait of a young woman with natural makeup, soft studio lighting highlighting her features, set against a pristine white background. High-resolution editorial photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbV9EvZ8rU-PFEHyQTSrnPhWyyZpiM8kNFxoM65AqxakLK1N_sVCdu7QDjJDaoYOJRGdvDNFQzqSCg60yBsXZGwOHGJFR-qydvaqGEAra-px6xGvhkWpud8uajjnwAzGRmkEy4rpaXY47hAHCVCdQ0GFwVWJvpPv4j-Mh-mokOxypdWuA2ZK0wv_jxmRVCDX5ryAcChTJAoClvpTKJLFVNwaYT6VAj4xCA7XINDQ3vWeDa42NlIHigug"/>
+</div>
+</div>
+</header>
+<!-- People & Places Horizontal Scroll -->
+<section class="py-md px-edge_margin md:px-xl border-b border-outline-variant/30 md:border-none">
+<div class="flex items-center justify-between mb-sm md:mb-md">
+<h3 class="font-headline-md text-headline-md text-on-surface">People &amp; Places</h3>
+<button class="text-primary text-label-md flex items-center hover:underline">
+                    View all <span class="material-symbols-outlined text-[18px] ml-1">chevron_right</span>
+</button>
+</div>
+<div class="flex gap-md overflow-x-auto pb-sm snap-x scrollbar-hide" style="scrollbar-width: none;">
+<!-- People Avatars -->
+<div class="flex flex-col items-center gap-xs snap-start cursor-pointer group">
+<div class="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-surface group-hover:border-primary-container transition-colors shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A bright, cheerful portrait of an elderly man with silver hair laughing in a sunlit garden. Captured with shallow depth of field, warm morning light, modern clean aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9Rh6xKaY0SXsqpG5FVljYF2FLY9pzJLFFS_lGOGfrQSmNMnZZ_utw7S2SjZnsuhEJ9F0TeCFYPfH66yutjh0PznW6aaTfg8jMqKq7uwB9ruCkFvh0VAHVGXbEgywJWol_uyPy7Te1E1oZOhhbC7Ryf3_bTM3h4-4X4wZiSA8sdIwxkFyGJNFtI5S-cAg6zk1Om2ZTTEBEA8cq-PgJXwKfqD3U1nbUEt4XC1JXHs3zUj0iHlzUkvxMwA"/>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Dad</span>
+</div>
+<div class="flex flex-col items-center gap-xs snap-start cursor-pointer group">
+<div class="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-surface group-hover:border-primary-container transition-colors shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A candid profile shot of a young boy looking curiously at something off-camera. Soft, diffused natural light in a minimalist white room. High quality modern photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARGbI9HViuQA27mBd7vdU6s66G-2xikDQyDTuuibuhXG0MtamaiIQ5jQQNpkDTv7jruqQetEMeDdLIRDZIqkYMFt_4jv0FbgY0wUMtVx44nQAAEsSUKrvtKAw8R6DtDGqlXcRK1S4Bcs6orQHG-J4FhE2gLLPfw359qz8pUe8EWksXWEps-LDDjTZ4xcVzJi13-cC8O4mLmEBYq9Rnz3F9qMmOZboSopyw90GHNlAmQVDTA3qHba0qnQ"/>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Leo</span>
+</div>
+<div class="flex flex-col items-center gap-xs snap-start cursor-pointer group">
+<div class="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-surface group-hover:border-primary-container transition-colors shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A stylish portrait of a woman in her 30s with short dark hair, wearing a neutral tone sweater, set against a calm gray background. Corporate modern minimalism." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2UuCtMVtBlqDrvuFw130T96ERFK9Cl9eAiuvtoO-wWDwQ-QULU-0v3uSkCGx9_wSimaAKT4qt4sfDSEN_LzErB32Zk9bB2S3RdNMSft6oqIRrbJECI5xTdtppAqxR2xT1GG2d0B0COowqu6HHYFLpFpuRvwWpIYRshmsQLBz-4hDmjw7DKnf5m2GVeCLa9ulWZGJ55385jEDaBPYrtsK7_HVJELYyR_D6_9el-CLA8ZGvB2420zIdKA"/>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Sarah</span>
+</div>
+<!-- Divider -->
+<div class="w-[1px] h-12 bg-outline-variant/30 mx-2 self-center shrink-0"></div>
+<!-- Places Thumbnails -->
+<div class="flex flex-col items-center gap-xs snap-start cursor-pointer group">
+<div class="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-outline-variant/30 group-hover:border-primary-container transition-colors shadow-sm relative">
+<div class="bg-cover bg-center w-full h-full" data-alt="A high-altitude aerial view of a geometric city grid meeting a deep blue ocean. Minimalist architectural photography, sharp contrast, bright daylight, premium native app visual style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuArBHFu0KjY1kFzkWOew_YgkkrM6Q70m32KeDcz9i_QZkAWGOq8YUJQ_ss6JF1iAwHBIroA4FY_Vp7nNymZkUEfTz7esgMBZWYO-2zhxWJF0rtDsEiZQdsRisJmn0YL3j3um6lCS0zUJ6ShzBfaM3reshgcljfkFh947He9XH0TNNzxgWqF-o2reso5RlH3HJqsr5EPzOwp_pZQvGyh5M0IbstZdVt9Anm9jpeIOe1EeVa7Y9wnAbHqzQ')"></div>
+<div class="absolute inset-0 bg-black/20 flex items-end p-2">
+<span class="material-symbols-outlined text-white text-[16px]">location_on</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Seattle</span>
+</div>
+<div class="flex flex-col items-center gap-xs snap-start cursor-pointer group">
+<div class="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-outline-variant/30 group-hover:border-primary-container transition-colors shadow-sm relative">
+<div class="bg-cover bg-center w-full h-full" data-alt="A serene, minimalist landscape of misty mountains rolling into the distance. Monochromatic cool tones, soft atmospheric perspective, high-end editorial nature photography." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDbb43VB79yuDyy2iQJ4YYNHM7ZywFtFlK_94scoSYGkevy8dUqo4X7EyPVivdFA3r98l3z9Yt-3YMe1dcm5nLwd7w2HWf9-il6lheWFgToRpJuDvYe3SCwpTd6QReemKan5iI60NTLykKtvOQitX-6qZk8CSU7DvdD7m30dSDR9AEePVrA7QP7CL_mUfgT3Cv-UDyqprI3ZGM-P35t-lYPzuVjc1dBviix7zD5LrtX60v7_yEcMpOKsA')"></div>
+<div class="absolute inset-0 bg-black/20 flex items-end p-2">
+<span class="material-symbols-outlined text-white text-[16px]">location_on</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Cascades</span>
+</div>
+</div>
+</section>
+<!-- Masonry Photo Grid -->
+<section class="px-[2px] md:px-xl py-xs md:py-md">
+<!-- Timeline Header -->
+<div class="px-edge_margin md:px-0 py-sm flex justify-between items-end sticky top-[56px] md:top-[104px] bg-background/95 glass-blur z-20">
+<h4 class="font-label-md text-label-md text-on-surface font-semibold">Today</h4>
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-sm py-1 rounded-full font-label-sm transition-colors">Select</button>
+</div>
+<div class="masonry-grid w-full">
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A stunning wide-angle landscape shot of a rocky coastline at twilight. The water is blurred from a long exposure, reflecting deep blue and purple hues. Minimalist nature aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAh31GmLAFmU6eG7ci4QFfm82zu2JoIwcYx9Fyo8k6s-j4UEKp1PAlSuRyqY9XEL7QNYpSkrqPEmXr0HzcJvuMbTxPG0hS8ekz9BUzw4EHeZ6w4-H5APk0CSyUQMblcmyDyiEaXfeFefRQaC0egbWwCsDWJInQrpiTpZZaI211NOoE625_S_3X0omr_q7KVioYveli1-wovKwZB-A4_B9-JKQ8Y7hEQQR4YO6TZNfniDjnLZ-cDpbR6oA"/>
+<div class="absolute top-2 right-2 w-6 h-6 rounded-full border border-white/50 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<div class="w-4 h-4 rounded-full border border-white"></div>
+</div>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A close-up macro shot of a single green fern frond uncurling. High contrast, sharp detail on the texture, soft blurred dark green background. Premium botanical photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHSabTnqqjEnPegLCNJlTwffhCfFfpqqPE-NkVloOWeTf0z_8LGUwfQgw1PauhgCNI_vlyguOuIritff8jwrF3kM17g_VZ5QVd746i_AosqKTBQ_EH53YwutY3wLUJ_c387Oozz5B8cFvn-DmtKradUIxTSVxhVyN0prIquw6Qt3hPwXNL9fKv9rmiGEj-rT6MVnHieZyUh5MjTIB_TkJdQZ8SVOZWCCBiHGF1oYLnmpNlGPLFcNBJ-A"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="An architectural detail of a modern concrete building facade with strong diagonal shadows cast by the midday sun. Monochromatic, high contrast, stark minimalist geometry." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCe5DK3sfRNACc0aBGwz8gSy4PS52PYQAueG6AwchrhRLylxJeEq2GOMumtOPPSYDDW3S4-16V2h0B-eC1kxVgB8oiBpSlFz9WMItpnYaklssUOGZ-jNhU4IIZ_2iTI5l9yblAK3EeLJ6X89FlE3QjxL4QjYjtrKIz-CyD7pJIXAunj25TRc1UhtXW4ejc3egIGt2w-ZCn-jj0vXWRFzEqEH5zIU1U3C8cod-tjvCD0WPLOu4pIMELo8g"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A candid lifestyle portrait of a barista pouring latte art in a bright, modern cafe. White countertops, soft natural window light, shallow depth of field focusing on the cup." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCN5EjbprFlZiWVGF6e5BYSjX2BW87zMtEdBRTNkGbLAeTbU_Tdph3RGf6hzgdY8ZJjnI4idAyysai3IITZvXRpRxa5dRapXOcbX3F4lNtUklWDUYiALJvqy7nOSRNR42QKHXY2KPTqxAfbdl41CczYfoxZ12g-_nYJ07pDHdDaJeF4CG1Ejs7GDYTwalflsTwRy_XktY_jfxo-06djGz-RRsprfXTePxXRdYGZbkYwgngoHB2DCFSncQ"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A serene still life of a minimalist white ceramic vase holding a single dry branch, sitting on a light oak table against a pristine white wall. High key lighting, quiet aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNSu613fyXcBYRYnS3rUBoYLym5qT1AmBX61Zw7LdgxMd1c3gR5b3refEWsqxw23YOECPT3NGnp6lzcH-GJW18E3Obb_jeFqlR6fbxGARnAxbdtC06EZiHhg_0N17Yc6m8jE3edNHmSNUDMgN2_0_HxCsFxiTu-8mkm6VETIZPSfUYfaUfz1rkRP3hL4X11zS712j3d9Ecy37Wu-Otu4R2fLuQGsrJWspzhyzkGnu9dJUjgqG5cwds5g"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A dynamic action shot of a dog catching a frisbee mid-air against a clear blue sky. Sharp focus, vibrant colors, capturing a moment of joyful energy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARuFlVnq_tit6B-gBX0Qt9WLffulL0odo8LxyRPd7jJNWDTzpdPkCpNZWb3D2lViaTdjYXl2yjFrNgFY2iXI-Su_nYffYef_Awv_CHfKx7HmEQhwYZ8HdE87n-pThSRwQD-0LaTYw78QP9YmSrl6Lm0O4npXU6-ib9NbMwCrm9_u50BFdQYLLFUh6bKhf74Np4-QnlBo7JWnICnFdP-WVPmWGu7cw7dltTvEA7zrwBHQM4tXWIr_FbUQ"/>
+</div>
+</div>
+<!-- Timeline Header -->
+<div class="px-edge_margin md:px-0 py-sm flex justify-between items-end sticky top-[56px] md:top-[104px] bg-background/95 glass-blur z-20 mt-4">
+<h4 class="font-label-md text-label-md text-on-surface font-semibold">Yesterday</h4>
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface px-sm py-1 rounded-full font-label-sm transition-colors">Select</button>
+</div>
+<div class="masonry-grid w-full">
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A moody, atmospheric shot of an empty winding mountain road enveloped in thick fog. Desaturated colors, predominantly slate gray and dark green. Cinematic tone." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVl62jFBpgDZa2G0W-AohiubajWLmWb5xbT0TeLa7-ld5f-AbpTGAuCX4XwuorxhYK4qYkQPb7-HiqIh1lRbcqb_wx8Eb8BfpL-o5WAezhKPVuCQcyDhjOYbBGJiSflJ1yab_TgxNl9VhxDLCv_6yir3wXElFt1nV1aqFURqStqN3TyWXgEhDb0n7FPCgC-Z0iHMjhKjYQ8bagnQ26C-_nbPsVQkxmwAC-q9eoMVb7dPGs4xvAA5Zk3A"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A beautifully plated gourmet meal featuring seared scallops on a bed of vibrant green puree. Photographed from above on a dark matte slate plate. Fine dining editorial style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4VPFLyWk-RFSDkWZiGPCaIRcV0XNz_OACU587gQXnBG6Q2i4bQfpzn7dJoHX8FRM30aM6L8JhVKdQztOuHfu61A8Jobg3sG0ptuoHrcXzNGVT9_WI8Ypka_kz8-h635psB3zBtp-4EGvKIDU5sexWNuccikwwiAUM4Q14NQr8TQcDWsVYSaj5LzyPnNEvFqGl8l_eRmIRobeNrkFZg1FOcGnA50sJEl6x220Y2CK1RFMVlcd1LXizVg"/>
+</div>
+<div class="masonry-item relative group">
+<img class="w-full h-auto object-cover cursor-zoom-in" data-alt="A detailed shot of a vintage mechanical watch face, showcasing the intricate gears and hands. Warm amber lighting, sharp macro focus, conveying precision and timelessness." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOJ3jiWXtFmzUYDAge61KdsJ3_H8JwIhvHi81-EwnYiW14QQaLnpzvJeairGdqIlRkrADuSajRWokRWrU4LiSYJEKwj3RiGRZyU4iGI5nt3cYoFaQqyd2wiUEXDteZ-5KvIKDyH3QQR4okfOYBq99vYa-Ns_Lz62R6tJ0Ir-UoXj0HUzDLgqrn15r6orf70k9fDzrkd9HESxQUNMoLJZI9OZEvcZ-AHeWbCkvb6l6IeTyzFJSw0W4Wrw"/>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden bg-surface/80 glass-blur dark:bg-surface-container-lowest/80 text-primary dark:text-primary-fixed font-label-sm text-label-sm fixed bottom-0 w-full z-50 pb-safe border-t border-outline-variant/30 flex justify-around items-center h-16 w-full px-2 tap-highlight-transparent">
+<button class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed font-semibold active:bg-surface-variant/30 px-4 py-1 rounded-xl">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">photo_library</span>
+<span>Library</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline active:bg-surface-variant/30 px-4 py-1 rounded-xl transition-colors">
+<span class="material-symbols-outlined mb-1">subscriptions</span>
+<span>Albums</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline active:bg-surface-variant/30 px-4 py-1 rounded-xl transition-colors">
+<span class="material-symbols-outlined mb-1">share</span>
+<span>Sharing</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline active:bg-surface-variant/30 px-4 py-1 rounded-xl transition-colors">
+<span class="material-symbols-outlined mb-1">person</span>
+<span>Profile</span>
+</button>
+</nav>
+</body></html>

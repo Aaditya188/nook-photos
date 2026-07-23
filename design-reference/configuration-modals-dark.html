@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>Settings - Passcode &amp; Server Configuration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-error-container": "#f9dedc",
+                "surface-container-highest": "#363434",
+                "surface-bright": "#3a3939",
+                "secondary-container": "#42474e",
+                "outline-variant": "#444746",
+                "outline": "#8e918f",
+                "secondary": "#c2c7cf",
+                "surface-container-high": "#2b2a2a",
+                "surface-container-lowest": "#0e0e0e",
+                "surface": "#131313",
+                "on-tertiary-container": "#ffdbcc",
+                "on-secondary-fixed": "#0c006a",
+                "on-secondary-container": "#dee3eb",
+                "secondary-fixed": "#e2dfff",
+                "primary-fixed-dim": "#adc6ff",
+                "surface-tint": "#a8c7fa",
+                "inverse-surface": "#e2e2e2",
+                "error-container": "#8c1d18",
+                "surface-container": "#212121",
+                "on-secondary-fixed-variant": "#3631b4",
+                "tertiary-fixed": "#ffdbcc",
+                "error": "#f2b8b5",
+                "primary": "#a8c7fa",
+                "on-tertiary-fixed-variant": "#7c2e00",
+                "on-tertiary-fixed": "#351000",
+                "on-primary-container": "#d3e3fd",
+                "on-surface-variant": "#c4c7c5",
+                "primary-container": "#0842a0",
+                "surface-container-low": "#1c1b1b",
+                "secondary-fixed-dim": "#c2c1ff",
+                "surface-dim": "#131313",
+                "on-background": "#e2e2e2",
+                "tertiary-fixed-dim": "#ffb595",
+                "tertiary": "#ffb595",
+                "background": "#131313",
+                "on-secondary": "#2c3137",
+                "surface-variant": "#363434",
+                "on-tertiary": "#351000",
+                "on-surface": "#e2e2e2",
+                "on-primary-fixed": "#001a41",
+                "inverse-on-surface": "#131313",
+                "primary-fixed": "#d8e2ff",
+                "inverse-primary": "#0058bc",
+                "on-primary": "#062e6f",
+                "tertiary-container": "#7c2e00",
+                "on-error": "#601410",
+                "on-primary-fixed-variant": "#004493"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "lg": "24px",
+                "edge_margin": "16px",
+                "grid_gutter": "2px",
+                "base": "4px",
+                "xl": "32px",
+                "xs": "8px",
+                "sm": "12px",
+                "md": "16px"
+        },
+        "fontFamily": {
+                "label-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Plus Jakarta Sans"
+                ],
+                "display": [
+                        "Plus Jakarta Sans"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Plus Jakarta Sans"
+                ]
+        },
+        "fontSize": {
+                "label-md": [
+                        "13px",
+                        {
+                                "lineHeight": "18px",
+                                "letterSpacing": "0.01em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "label-sm": [
+                        "11px",
+                        {
+                                "lineHeight": "13px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-md": [
+                        "22px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "display": [
+                        "34px",
+                        {
+                                "lineHeight": "41px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "body-md": [
+                        "15px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-lg": [
+                        "17px",
+                        {
+                                "lineHeight": "24px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "28px",
+                        {
+                                "lineHeight": "34px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        /* Optional custom styling for smooth backdrop transitions */
+        .backdrop-blur-md {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background font-body-md h-screen overflow-hidden flex flex-col relative">
+<!-- Top Navigation Anchor (Suppressed interactive shell, using static header for settings context) -->
+<header class="fixed top-0 w-full z-10 bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant/30 flex justify-between items-center px-edge_margin h-14">
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-display text-headline-md text-on-surface font-bold">Settings</h1>
+</div>
+</header>
+<!-- Main Content Canvas (Background behind overlays) -->
+<main class="flex-1 overflow-y-auto pt-16 pb-20 px-edge_margin w-full max-w-3xl mx-auto opacity-40 blur-sm pointer-events-none transition-all duration-300">
+<!-- Dummy Settings List for context -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden mb-6">
+<div class="px-md py-sm flex justify-between items-center border-b border-outline-variant/30">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline" data-icon="lock">lock</span>
+<span class="font-body-lg text-on-surface">Security</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+<div class="px-md py-sm flex justify-between items-center border-b border-outline-variant/30">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline" data-icon="dns">dns</span>
+<span class="font-body-lg text-on-surface">Network &amp; Server</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+<div class="px-md py-sm flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline" data-icon="notifications">notifications</span>
+<span class="font-body-lg text-on-surface">Notifications</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</main>
+<!-- OVERLAYS Container -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/60 backdrop-blur-sm">
+<!-- Container for Dialogs (Side-by-side on large screens, stacked on small if needed, but here we'll assume a workflow where one is open, demonstrating both for the prompt) -->
+<div class="flex flex-col md:flex-row gap-6 w-full max-w-5xl justify-center items-stretch">
+<!-- 1. Change Passcode Dialog -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-lg w-full max-w-sm flex flex-col items-center p-6 md:p-8 shrink-0">
+<div class="text-center mb-8">
+<div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary-container/20 text-primary mb-4">
+<span class="material-symbols-outlined text-2xl" data-icon="lock_reset" data-weight="fill" style="font-variation-settings: 'FILL' 1;">lock_reset</span>
+</div>
+<h2 class="font-headline-md text-on-surface font-semibold mb-2">Enter New Passcode</h2>
+<p class="font-body-md text-on-surface-variant">Please enter a 6-digit passcode to secure your data.</p>
+</div>
+<!-- Passcode Dots Container -->
+<div class="flex gap-4 mb-10">
+<div class="w-4 h-4 rounded-full bg-primary"></div>
+<div class="w-4 h-4 rounded-full bg-primary"></div>
+<div class="w-4 h-4 rounded-full bg-primary"></div>
+<div class="w-4 h-4 rounded-full bg-surface-variant border border-outline-variant/50"></div>
+<div class="w-4 h-4 rounded-full bg-surface-variant border border-outline-variant/50"></div>
+<div class="w-4 h-4 rounded-full bg-surface-variant border border-outline-variant/50"></div>
+</div>
+<!-- Numeric Keypad -->
+<div class="grid grid-cols-3 gap-x-6 gap-y-4 w-full px-4">
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">1</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">2</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">3</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">4</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">5</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">6</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">7</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">8</button>
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">9</button>
+<div class="w-16 h-16"></div> <!-- Spacer -->
+<button class="w-16 h-16 rounded-full bg-surface-container-low hover:bg-surface-container-high text-on-surface font-headline-lg font-semibold flex items-center justify-center transition-colors">0</button>
+<button class="w-16 h-16 rounded-full text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors">
+<span class="material-symbols-outlined text-3xl" data-icon="backspace">backspace</span>
+</button>
+</div>
+<div class="mt-8 w-full flex justify-center">
+<button class="font-label-md text-primary hover:text-primary-container transition-colors">Cancel</button>
+</div>
+</div>
+<!-- 2. Server Configuration Modal -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-lg w-full max-w-md flex flex-col p-6 shrink-0 relative">
+<button class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors p-2 rounded-full hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<div class="mb-6">
+<h2 class="font-headline-md text-on-surface font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="dns">dns</span>
+                        Server Configuration
+                    </h2>
+<p class="font-body-md text-on-surface-variant mt-1">Configure your remote connection settings.</p>
+</div>
+<form class="flex flex-col gap-5 flex-1">
+<!-- Environment Toggle (Bento-style selection) -->
+<div>
+<label class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-2 block">Environment</label>
+<div class="grid grid-cols-2 gap-2">
+<button class="bg-primary text-on-primary font-label-md py-3 rounded-lg border border-primary text-center transition-colors" type="button">Production</button>
+<button class="bg-surface-container-low text-on-surface font-label-md py-3 rounded-lg border border-outline-variant/30 text-center hover:bg-surface-container-high transition-colors" type="button">Staging</button>
+</div>
+</div>
+<!-- Server URL -->
+<div>
+<label class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-2 block" for="serverUrl">Server URL</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-outline">
+<span class="material-symbols-outlined" data-icon="link">link</span>
+</span>
+<input class="w-full bg-surface-container-low border border-outline-variant/30 text-on-surface font-body-md rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" id="serverUrl" placeholder="https://api.luminaphotos.com" type="url" value="https://api.luminaphotos.com"/>
+</div>
+</div>
+<!-- Port -->
+<div>
+<label class="font-label-sm text-on-surface-variant uppercase tracking-wider mb-2 block" for="serverPort">Port</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-outline">
+<span class="material-symbols-outlined" data-icon="settings_ethernet">settings_ethernet</span>
+</span>
+<input class="w-full bg-surface-container-low border border-outline-variant/30 text-on-surface font-body-md rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" id="serverPort" placeholder="443" type="number" value="443"/>
+</div>
+</div>
+<!-- Advanced Settings Toggle -->
+<div class="flex items-center justify-between py-2 border-t border-outline-variant/30 mt-2">
+<span class="font-body-md text-on-surface">Use SSL/TLS</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface-container-lowest after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-outline after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</form>
+<div class="mt-8 flex flex-col gap-3">
+<button class="w-full h-[50px] bg-primary text-on-primary font-label-md rounded-lg hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" data-icon="save">save</span>
+                        Save Configuration
+                    </button>
+<button class="w-full h-[50px] bg-surface-container-low text-primary font-label-md rounded-lg hover:bg-surface-container-high border border-outline-variant/30 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" data-icon="wifi_find">wifi_find</span>
+                        Test Connection
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

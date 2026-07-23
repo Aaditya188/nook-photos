@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile - Lumina Photos</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "surface-container-lowest": "#ffffff",
+                "tertiary": "#9e3d00",
+                "outline": "#717786",
+                "surface-container-highest": "#e3e2e7",
+                "surface-container-high": "#e9e7ed",
+                "primary-fixed": "#d8e2ff",
+                "tertiary-container": "#c64f00",
+                "on-primary-fixed": "#001a41",
+                "primary": "#0058bc",
+                "on-tertiary-container": "#fffbff",
+                "surface-container": "#eeedf3",
+                "tertiary-fixed": "#ffdbcc",
+                "surface-dim": "#dad9df",
+                "on-tertiary-fixed": "#351000",
+                "surface": "#faf9fe",
+                "primary-container": "#0070eb",
+                "inverse-on-surface": "#f1f0f5",
+                "secondary-fixed": "#e2dfff",
+                "on-primary-container": "#fefcff",
+                "secondary": "#4c4aca",
+                "surface-tint": "#005bc1",
+                "surface-bright": "#faf9fe",
+                "background": "#faf9fe",
+                "secondary-container": "#6664e4",
+                "on-background": "#1a1b1f",
+                "on-secondary": "#ffffff",
+                "surface-variant": "#e3e2e7",
+                "on-secondary-container": "#fffbff",
+                "tertiary-fixed-dim": "#ffb595",
+                "on-primary-fixed-variant": "#004493",
+                "on-surface-variant": "#414755",
+                "on-secondary-fixed-variant": "#3631b4",
+                "on-error-container": "#93000a",
+                "surface-container-low": "#f4f3f8",
+                "inverse-surface": "#2f3034",
+                "on-tertiary-fixed-variant": "#7c2e00",
+                "on-surface": "#1a1b1f",
+                "secondary-fixed-dim": "#c2c1ff",
+                "on-tertiary": "#ffffff",
+                "outline-variant": "#c1c6d7",
+                "error-container": "#ffdad6",
+                "on-secondary-fixed": "#0c006a",
+                "on-error": "#ffffff",
+                "on-primary": "#ffffff",
+                "error": "#ba1a1a",
+                "inverse-primary": "#adc6ff",
+                "primary-fixed-dim": "#adc6ff"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "edge_margin": "16px",
+                "xs": "8px",
+                "sm": "12px",
+                "lg": "24px",
+                "xl": "32px",
+                "md": "16px",
+                "base": "4px",
+                "grid_gutter": "2px"
+        },
+        "fontFamily": {
+                "display": [
+                        "Plus Jakarta Sans"
+                ],
+                "headline-md": [
+                        "Plus Jakarta Sans"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Plus Jakarta Sans"
+                ],
+                "body-md": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "display": [
+                        "34px",
+                        {
+                                "lineHeight": "41px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-md": [
+                        "22px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "17px",
+                        {
+                                "lineHeight": "24px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "13px",
+                        {
+                                "lineHeight": "18px",
+                                "letterSpacing": "0.01em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "label-sm": [
+                        "11px",
+                        {
+                                "lineHeight": "13px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-lg": [
+                        "28px",
+                        {
+                                "lineHeight": "34px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "body-md": [
+                        "15px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface-container-low text-on-background antialiased min-h-screen flex flex-col pt-safe">
+<!-- TopAppBar -->
+<header class="bg-surface/90 backdrop-blur-md fixed top-0 w-full z-50 border-b border-outline-variant/30 flex justify-between items-center px-edge_margin h-14 transition-transform duration-200">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-variant flex-shrink-0">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A close-up portrait of a young person smiling softly in bright, natural, light-mode daylight. They have a clean, modern aesthetic with a soft blue backdrop that perfectly matches a high-end corporate or minimal photography app theme. The lighting is pristine and the mood is welcoming." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnie4V7hfAtIdM70xkKG1f678pVdSTKERUQ6oYKVUhU6YD6xogILb7bLZCkYjnpAYvpLbTS-0Ep5ufpRBVXMHHQ4LS4Ed5tEzMCWVoLUDXvkeKd890XWnA_2ClvjnbTjhth_a9yf4JHVx34xzKyxt_iai_fxtz19GJScC2ixdOOYxo3ppGZFnu7tQzBL2DnM84SwQySkogp0nMOaODCmlRXrPaAMzw59fq8B_EzeGuzZNbrHqcJAIuDA"/>
+</div>
+<span class="font-display text-headline-md font-bold text-on-surface">Lumina Photos</span>
+</div>
+<button class="text-primary p-2 hover:bg-surface-variant/50 transition-colors rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="flex-grow pt-14 pb-24 px-edge_margin md:max-w-2xl md:mx-auto w-full flex flex-col gap-xl mt-lg">
+<!-- Profile Header -->
+<section class="flex flex-col items-center text-center gap-md">
+<div class="w-32 h-32 rounded-full overflow-hidden bg-surface-variant border-4 border-surface shadow-sm relative group cursor-pointer">
+<img alt="Alex Johnson" class="w-full h-full object-cover" data-alt="A close-up portrait of a young person smiling softly in bright, natural, light-mode daylight. They have a clean, modern aesthetic with a soft blue backdrop that perfectly matches a high-end corporate or minimal photography app theme. The lighting is pristine and the mood is welcoming." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRLbquHoyuJUOb5AsQ_9tqgS-8i0J4No5F6vD1TZPGpS-9KeobGQ26bHjGPNroixEQUexG8sUYhl0i2IfvUeSn_m1ESvKiCh9g3oW1x9cl1ct-Ed92bAF1k3qDdbz11AXl4j-s5EvenCgaCCnDUVU3zYj9xH8rCEGH4l97BLtlb4I8h8t5cSbuQx-au3_Op0uBigHzkyE49qpbeM2I22ZsWyD0fIRpdavw3UP_cbYp8PkC1vIpm8BdDA"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white">edit</span>
+</div>
+</div>
+<div>
+<h1 class="font-headline-lg text-display text-on-surface">Alex Johnson</h1>
+<p class="font-body-md text-body-lg text-on-surface-variant mt-1">alex.johnson@example.com</p>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-on-primary font-label-md text-label-md px-6 py-2.5 rounded-full transition-colors flex items-center gap-2 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                Edit Profile
+            </button>
+</section>
+<!-- General Settings -->
+<section>
+<h2 class="font-label-sm text-label-md text-on-surface-variant uppercase tracking-wider mb-2 ml-4">Account</h2>
+<div class="bg-surface rounded-2xl overflow-hidden divide-y divide-outline-variant/20 shadow-sm">
+<button class="w-full px-edge_margin py-4 flex items-center justify-between hover:bg-surface-variant/30 transition-colors group">
+<div class="flex items-center gap-3 text-on-surface font-body-lg text-body-lg">
+<span class="material-symbols-outlined text-primary group-hover:text-primary-container transition-colors">badge</span>
+                        Change Display Name
+                    </div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full px-edge_margin py-4 flex items-center justify-between hover:bg-surface-variant/30 transition-colors group">
+<div class="flex items-center gap-3 text-on-surface font-body-lg text-body-lg">
+<span class="material-symbols-outlined text-primary group-hover:text-primary-container transition-colors">lock</span>
+                        Change App Passcode
+                    </div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full px-edge_margin py-4 flex items-center justify-between hover:bg-surface-variant/30 transition-colors group">
+<div class="flex items-center gap-3 text-on-surface font-body-lg text-body-lg">
+<span class="material-symbols-outlined text-primary group-hover:text-primary-container transition-colors">palette</span>
+                        Theme Customization
+                    </div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Smart Sync -->
+<section>
+<h2 class="font-label-sm text-label-md text-on-surface-variant uppercase tracking-wider mb-2 ml-4">Smart Sync &amp; Automation</h2>
+<div class="bg-surface rounded-2xl overflow-hidden divide-y divide-outline-variant/20 shadow-sm">
+<div class="px-edge_margin py-4 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-on-surface font-body-lg text-body-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">cloud_sync</span>
+                            Nighttime Sync
+                        </span>
+<span class="text-on-surface-variant font-label-md text-label-md mt-1 ml-9">Only sync over Wi-Fi between 2 AM - 5 AM</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-14 h-8 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+</label>
+</div>
+<div class="px-edge_margin py-4 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-on-surface font-body-lg text-body-lg flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+                            Auto-create Memories
+                        </span>
+<span class="text-on-surface-variant font-label-md text-label-md mt-1 ml-9">Generate weekly highlights from your library</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-14 h-8 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Actions -->
+<section class="mt-4 mb-8">
+<button class="w-full bg-surface text-error font-body-lg text-body-lg py-4 rounded-2xl hover:bg-surface-variant/50 transition-colors flex items-center justify-center gap-2 font-semibold shadow-sm">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+                Sign Out
+            </button>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden bg-surface/90 backdrop-blur-md fixed bottom-0 w-full z-50 pb-safe border-t border-outline-variant/30 flex justify-around items-center h-16 px-2 tap-highlight-transparent">
+<!-- Library (Inactive) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant/30 w-16 h-full rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="photo_library">photo_library</span>
+<span class="font-label-sm text-label-sm">Library</span>
+</a>
+<!-- Albums (Inactive) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant/30 w-16 h-full rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="subscriptions">subscriptions</span>
+<span class="font-label-sm text-label-sm">Albums</span>
+</a>
+<!-- Sharing (Inactive) -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant/30 w-16 h-full rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="share">share</span>
+<span class="font-label-sm text-label-sm">Sharing</span>
+</a>
+<!-- Profile (Active) -->
+<a class="flex flex-col items-center justify-center text-primary font-semibold active:bg-surface-variant/30 w-16 h-full rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="person" data-weight="fill" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</nav>
+</body></html>
