@@ -2067,19 +2067,66 @@ h3.day-header {
 }
 
 .auth-hero {
+  position: relative;
+  overflow: hidden;
   flex: 1.15;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 48px;
-  background:
-    radial-gradient(900px 620px at 12% -8%, rgba(87, 211, 138, 0.16), transparent 60%),
-    radial-gradient(720px 500px at 96% 108%, rgba(143, 183, 255, 0.1), transparent 55%),
-    var(--bg-2);
+  background: var(--bg-2);
   border-right: 0.5px solid var(--hairline);
 }
 
-.auth-hero-inner { max-width: 470px; }
+/* Slow-moving aurora glow. */
+.auth-aurora {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(680px 520px at 18% 12%, rgba(87, 211, 138, 0.28), transparent 60%),
+    radial-gradient(620px 480px at 82% 88%, rgba(143, 183, 255, 0.2), transparent 58%),
+    radial-gradient(520px 420px at 60% 30%, rgba(240, 179, 94, 0.12), transparent 60%);
+  filter: blur(12px);
+  animation: auroraDrift 18s ease-in-out infinite alternate;
+}
+
+@keyframes auroraDrift {
+  0% { transform: translate3d(-3%, -2%, 0) scale(1); }
+  100% { transform: translate3d(4%, 3%, 0) scale(1.12); }
+}
+
+/* Drifting mosaic of translucent "photo" tiles behind the copy. */
+.auth-mosaic {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 14px;
+  padding: 24px;
+  opacity: 0.5;
+  mask-image: radial-gradient(120% 100% at 50% 50%, #000 35%, transparent 78%);
+  -webkit-mask-image: radial-gradient(120% 100% at 50% 50%, #000 35%, transparent 78%);
+}
+
+.auth-tile {
+  border-radius: 14px;
+  animation: tileFloat 9s ease-in-out infinite alternate;
+}
+
+.auth-tile.t0 { background: linear-gradient(140deg, #57d38a, #2f8f5c); }
+.auth-tile.t1 { background: linear-gradient(140deg, #8fb7ff, #4a6fd0); }
+.auth-tile.t2 { background: linear-gradient(140deg, #f0b35e, #c07b2a); }
+.auth-tile.t3 { background: linear-gradient(140deg, #ff6b8a, #c23e5c); }
+.auth-tile.t4 { background: linear-gradient(140deg, #2a2a2e, #17171a); }
+.auth-tile.t5 { background: linear-gradient(140deg, #63e39a, #7f8dff); }
+
+@keyframes tileFloat {
+  0% { transform: translateY(0) scale(1); opacity: 0.75; }
+  100% { transform: translateY(-10px) scale(1.03); opacity: 1; }
+}
+
+.auth-hero-inner { position: relative; z-index: 1; max-width: 470px; }
 
 .auth-hero-title {
   font-size: 42px;

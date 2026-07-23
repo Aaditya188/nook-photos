@@ -112,6 +112,13 @@ export function AuthScreen() {
     <div className="auth-screen auth-split">
       {/* ---------------------------------------------------- brand hero */}
       <div className="auth-hero">
+        {/* Ambient background: drifting photo-mosaic + aurora glow. */}
+        <div className="auth-aurora" aria-hidden="true" />
+        <div className="auth-mosaic" aria-hidden="true">
+          {Array.from({ length: 24 }, (_, i) => (
+            <span key={i} className={'auth-tile t' + (i % 6)} style={{ animationDelay: (i % 8) * -1.3 + 's' }} />
+          ))}
+        </div>
         <div className="auth-hero-inner">
           <div className="auth-brand">
             <div className="auth-mark" aria-hidden="true">
