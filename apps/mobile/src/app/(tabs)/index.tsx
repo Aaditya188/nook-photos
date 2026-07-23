@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, useDeletePhoto, type PhotoRecord } from '@nook/core';
 import { PhotoGrid } from '@/components/PhotoGrid';
 import { PeopleRail } from '@/components/PeopleRail';
+import { MemoriesRail } from '@/components/MemoriesRail';
 import { Text } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useTheme } from '@/theme';
@@ -65,6 +66,7 @@ export default function LibraryScreen() {
           )}
         </View>
       </View>
+      {!selectMode ? <MemoriesRail /> : null}
       {!selectMode ? <PeopleRail /> : null}
     </View>
   );

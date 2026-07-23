@@ -125,7 +125,7 @@ export class NookClient {
   setup(input: { username: string; password: string; displayName: string; email?: string }) {
     return this.request<AuthResult>('POST', '/api/setup', { auth: false, body: input });
   }
-  login(input: { username: string; password: string }) {
+  login(input: { username: string; password: string; code?: string }) {
     return this.request<AuthResult>('POST', '/api/login', { auth: false, body: input });
   }
   logout() {
@@ -241,5 +241,53 @@ export class NookClient {
   }
   deleteAlbum(id: string) {
     return this.request<{ ok: true }>('DELETE', `/api/albums/${id}`);
+  }
+
+  // ---- album share links (served by the gateway) ----
+  albumShare(id: string) {
+    return this.request<{
+      shared: boolean;
+      id?: string;
+      url?: string;
+      expiresAt?: number | null;
+      hasPassword?: boolean;
+      allowDownload?: boolean;
+    }>('GET', `/api/albums/${id}/share`);
+  }
+  createAlbumShare(
+    id: string,
+    opts: { expiresDays?: number; password?: string; allowDownload?: boolean } = {},
+  ) {
+    return this.request<{ shared: true; id: string; url: string }>(
+      'POST',
+      `/api/albums/${id}/share`,
+      { body: opts },
+    );
+  }
+  revokeAlbumShare(id: string) {
+    return this.request<{ shared: false }>('DELETE', `/api/albums/${id}/share`);
+  }
+
+  // ---- sessions (signed-in devices) + two-factor ----
+  sessions() {
+    return this.request<{
+      sessions: { id: string; createdAt: string; label: string; current: boolean }[];
+    }>('GET', '/api/sessions');
+  }
+  revokeSession(id: string) {
+    return this.request<{ ok: true }>('DELETE', `/api/sessions/${id}`);
+  }
+  totpSetup() {
+    return this.request<{ secret: string; otpauth: string }>('POST', '/api/account/2fa/setup');
+  }
+  totpVerify(code: string) {
+    return this.request<{ ok: true; totpEnabled: true }>('POST', '/api/account/2fa/verify', {
+      body: { code },
+    });
+  }
+  totpDisable(code: string) {
+    return this.request<{ ok: true; totpEnabled: false }>('POST', '/api/account/2fa/disable', {
+      body: { code },
+    });
   }
 }

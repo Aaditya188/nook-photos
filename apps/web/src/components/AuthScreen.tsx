@@ -42,6 +42,8 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [serverName, setServerName] = useState<string | null>(null);
+  const [totpNeeded, setTotpNeeded] = useState(false);
+  const [code, setCode] = useState('');
 
   useEffect(() => {
     client
@@ -76,13 +78,24 @@ export function AuthScreen() {
               displayName: displayName.trim(),
               ...(email.trim() ? { email: email.trim() } : {}),
             })
-          : await client.login({ username: username.trim(), password });
+          : await client.login({
+              username: username.trim(),
+              password,
+              ...(code ? { code } : {}),
+            });
       // A fresh admin signup lands in the onboarding guide.
       if (mode === 'setup') localStorage.setItem('nookShowOnboarding', '1');
       startSession(data.token, data.user);
     } catch (err) {
       setBusy(false);
-      const anyErr = err as { status?: number; message?: string };
+      const anyErr = err as { status?: number; message?: string; body?: { totpRequired?: boolean } };
+      // Password was right but the account has 2FA → ask for the code.
+      if (anyErr.body?.totpRequired) {
+        setTotpNeeded(true);
+        setError(code ? 'That code didn’t work — try the current one.' : '');
+        setCode('');
+        return;
+      }
       if (mode === 'setup' && anyErr.status === 409) {
         setMode('login');
         setError('This server has already been set up. Sign in with your account.');
@@ -218,6 +231,21 @@ export function AuthScreen() {
                 </button>
               </div>
             </label>
+
+            {totpNeeded ? (
+              <label className="field">
+                <span>Two-factor code</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="6-digit code"
+                  autoFocus
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                />
+              </label>
+            ) : null}
 
             {error ? (
               <div className="auth-error" role="alert">

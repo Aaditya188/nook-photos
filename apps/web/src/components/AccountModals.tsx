@@ -1,6 +1,7 @@
-/** Account settings, user management, and add-user modal cards. */
+/** Account settings, security (devices, 2FA), user management modal cards. */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import type { User } from '@nook/core';
 import { useAuth } from '../state/auth';
 import { useModals, useToast } from '../state/ui';
@@ -110,6 +111,40 @@ function AccountCard({ close }: { close: () => void }) {
       <button
         type="button"
         className="m-link"
+        onClick={() => modals.openElement((c) => <DevicesCard close={c} />)}
+      >
+        Signed-in devices →
+      </button>
+      <button
+        type="button"
+        className="m-link"
+        onClick={() => {
+          if (account?.totpEnabled) {
+            void (async () => {
+              const code = await modals.prompt({
+                title: 'Disable two-factor',
+                placeholder: '6-digit code from your app',
+                confirm: 'Disable',
+              });
+              if (!code) return;
+              try {
+                await client.totpDisable(code);
+                setAccount((a) => (a ? { ...a, totpEnabled: false } : a));
+                toast('Two-factor disabled');
+              } catch (e) {
+                toast((e as Error).message || 'Could not disable');
+              }
+            })();
+          } else {
+            modals.openElement((c) => <TotpSetupCard close={c} onEnabled={() => setAccount((a) => (a ? { ...a, totpEnabled: true } : a))} />);
+          }
+        }}
+      >
+        {account?.totpEnabled ? 'Disable two-factor authentication' : 'Enable two-factor authentication →'}
+      </button>
+      <button
+        type="button"
+        className="m-link"
         onClick={() => {
           close();
           navigate('/welcome');
@@ -145,6 +180,151 @@ function AccountCard({ close }: { close: () => void }) {
         </button>
         <button type="button" className="m-btn primary" disabled={busy} onClick={save}>
           Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Signed-in devices with per-session revoke. */
+function DevicesCard({ close }: { close: () => void }) {
+  const { client, signOutLocal } = useAuth();
+  const toast = useToast();
+  const [sessions, setSessions] = useState<
+    { id: string; createdAt: string; label: string; current: boolean }[] | null
+  >(null);
+
+  const reload = () => {
+    client
+      .sessions()
+      .then((j) => setSessions(j.sessions))
+      .catch(() => setSessions([]));
+  };
+  useEffect(reload, [client]);
+
+  return (
+    <div className="m-wrap">
+      <div className="m-title">Signed-in devices</div>
+      <div className="m-list">
+        {sessions === null ? (
+          <div className="m-note">Loading…</div>
+        ) : sessions.length === 0 ? (
+          <div className="m-note">No sessions.</div>
+        ) : (
+          sessions.map((s) => (
+            <div key={s.id} className="m-user">
+              <div className="m-user-info">
+                <div className="m-user-name">
+                  {s.label}
+                  {s.current ? ' · this device' : ''}
+                </div>
+                <div className="m-user-sub">
+                  since{' '}
+                  {new Date(s.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="m-user-del"
+                title={s.current ? 'Sign out this device' : 'Revoke'}
+                onClick={async () => {
+                  try {
+                    await client.revokeSession(s.id);
+                    if (s.current) {
+                      signOutLocal();
+                      return;
+                    }
+                    toast('Device signed out');
+                    reload();
+                  } catch {
+                    toast('Could not revoke');
+                  }
+                }}
+              >
+                <Svg html={ICON.trash} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="m-buttons">
+        <button type="button" className="m-btn primary" onClick={close}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Enable TOTP: QR + secret, then a code to confirm. */
+function TotpSetupCard({ close, onEnabled }: { close: () => void; onEnabled: () => void }) {
+  const { client } = useAuth();
+  const toast = useToast();
+  const [qr, setQr] = useState<string | null>(null);
+  const [secret, setSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    client
+      .totpSetup()
+      .then(async (j) => {
+        setSecret(j.secret);
+        setQr(await QRCode.toDataURL(j.otpauth, { margin: 1, width: 220 }));
+      })
+      .catch(() => setError('Could not start setup'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const verify = async () => {
+    if (busy || !code) return;
+    setBusy(true);
+    setError('');
+    try {
+      await client.totpVerify(code);
+      toast('Two-factor enabled');
+      onEnabled();
+      close();
+    } catch (e) {
+      setBusy(false);
+      setError((e as Error).message || 'Invalid code');
+    }
+  };
+
+  return (
+    <div className="m-wrap">
+      <div className="m-title">Enable two-factor</div>
+      <p className="m-body">
+        Scan with any authenticator app (Google Authenticator, 1Password, Authy…), then enter the
+        6-digit code to confirm.
+      </p>
+      {qr ? <img className="totp-qr" src={qr} alt="TOTP QR code" /> : <div className="m-note">Generating…</div>}
+      {secret ? (
+        <div className="m-note totp-secret">
+          Manual key: <code>{secret}</code>
+        </div>
+      ) : null}
+      <input
+        className="m-input"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        placeholder="123 456"
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+        onKeyDown={(e) => e.key === 'Enter' && verify()}
+      />
+      {error ? <div className="m-error">{error}</div> : null}
+      <div className="m-buttons">
+        <button type="button" className="m-btn" onClick={close}>
+          Cancel
+        </button>
+        <button type="button" className="m-btn primary" disabled={busy || code.length !== 6} onClick={verify}>
+          {busy ? 'Checking…' : 'Turn on'}
         </button>
       </div>
     </div>

@@ -240,10 +240,105 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-function issueToken(userId) {
+function issueToken(userId, label) {
   const token = crypto.randomBytes(TOKEN_BYTES).toString('hex');
-  db.tokens[token] = { userId: userId, createdAt: new Date().toISOString() };
+  db.tokens[token] = {
+    userId: userId,
+    createdAt: new Date().toISOString(),
+    label: label ? String(label).slice(0, 80) : '',
+  };
   return token;
+}
+
+/** Public, non-secret id for a session token (safe to list + revoke by). */
+function sessionIdOf(token) {
+  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
+}
+
+/** A short human label from a User-Agent header. */
+function deviceLabelFrom(req) {
+  const ua = String(req.headers['user-agent'] || '');
+  if (/nook-mobile|expo|okhttp|cfnetwork|darwin/i.test(ua) && !/mozilla/i.test(ua)) return 'Mobile app';
+  const os = /windows/i.test(ua)
+    ? 'Windows'
+    : /iphone|ios/i.test(ua)
+      ? 'iPhone'
+      : /android/i.test(ua)
+        ? 'Android'
+        : /mac os/i.test(ua)
+          ? 'Mac'
+          : /linux/i.test(ua)
+            ? 'Linux'
+            : '';
+  const browser = /edg\//i.test(ua)
+    ? 'Edge'
+    : /chrome\//i.test(ua)
+      ? 'Chrome'
+      : /safari\//i.test(ua) && !/chrome/i.test(ua)
+        ? 'Safari'
+        : /firefox\//i.test(ua)
+          ? 'Firefox'
+          : '';
+  return [browser, os].filter(Boolean).join(' on ') || (ua ? ua.slice(0, 40) : 'Unknown device');
+}
+
+// ---------------------------------------------------------------------------
+// TOTP (RFC 6238, SHA-1, 6 digits, 30s) — zero-dependency
+// ---------------------------------------------------------------------------
+
+const B32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Encode(buf) {
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const byte of buf) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += B32_ALPHABET[(value << (5 - bits)) & 31];
+  return out;
+}
+
+function base32Decode(str) {
+  const clean = String(str).toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const ch of clean) {
+    value = (value << 5) | B32_ALPHABET.indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+function totpCode(secretB32, timeStep) {
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(timeStep));
+  const h = crypto.createHmac('sha1', base32Decode(secretB32)).update(counter).digest();
+  const off = h[h.length - 1] & 0xf;
+  const code =
+    (((h[off] & 0x7f) << 24) | (h[off + 1] << 16) | (h[off + 2] << 8) | h[off + 3]) % 1000000;
+  return String(code).padStart(6, '0');
+}
+
+/** Accepts the current 30s step and one step either side (clock skew). */
+function verifyTotp(secretB32, code) {
+  const given = String(code || '').replace(/\s/g, '');
+  if (!/^\d{6}$/.test(given)) return false;
+  const step = Math.floor(Date.now() / 30000);
+  for (const s of [step, step - 1, step + 1]) {
+    if (crypto.timingSafeEqual(Buffer.from(totpCode(secretB32, s)), Buffer.from(given))) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +353,7 @@ function toPublicUser(u) {
     email: u.email == null ? null : u.email,
     role: u.role,
     createdAt: u.createdAt,
+    totpEnabled: !!(u.totp && u.totp.enabled),
   };
 }
 
@@ -692,7 +788,7 @@ async function handleSetup(req, res) {
     throw httpError(400, 'displayName (non-empty string) is required');
   }
   const user = makeUser(body, 'admin');
-  const token = issueToken(user.id);
+  const token = issueToken(user.id, deviceLabelFrom(req));
   persist();
   sendJson(res, 200, { token: token, user: toPublicUser(user) });
 }
@@ -706,9 +802,82 @@ async function handleLogin(req, res) {
   if (!user || !verifyPassword(body.password, user.password)) {
     throw httpError(401, 'invalid username or password');
   }
-  const token = issueToken(user.id);
+  // Two-factor: after the password checks out, require a valid TOTP code.
+  if (user.totp && user.totp.enabled) {
+    if (!body.code) {
+      return sendJson(res, 401, { error: 'two-factor code required', totpRequired: true });
+    }
+    if (!verifyTotp(user.totp.secret, body.code)) {
+      return sendJson(res, 401, { error: 'invalid two-factor code', totpRequired: true });
+    }
+  }
+  const token = issueToken(user.id, deviceLabelFrom(req));
   persist();
   sendJson(res, 200, { token: token, user: toPublicUser(user) });
+}
+
+// ---------------------------------------------------------------------------
+// Sessions (signed-in devices) + two-factor management
+// ---------------------------------------------------------------------------
+
+function handleListSessions(res, user, currentToken) {
+  const sessions = [];
+  for (const tok of Object.keys(db.tokens)) {
+    const rec = db.tokens[tok];
+    if (rec.userId !== user.id) continue;
+    sessions.push({
+      id: sessionIdOf(tok),
+      createdAt: rec.createdAt,
+      label: rec.label || 'Unknown device',
+      current: tok === currentToken,
+    });
+  }
+  sessions.sort(function (a, b) {
+    return (b.current ? 1 : 0) - (a.current ? 1 : 0) || String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  sendJson(res, 200, { sessions: sessions });
+}
+
+function handleRevokeSession(res, user, sid) {
+  for (const tok of Object.keys(db.tokens)) {
+    if (db.tokens[tok].userId === user.id && sessionIdOf(tok) === sid) {
+      delete db.tokens[tok];
+      persist();
+      return sendJson(res, 200, { ok: true });
+    }
+  }
+  throw httpError(404, 'session not found');
+}
+
+async function handleTotpSetup(req, res, user) {
+  const secret = base32Encode(crypto.randomBytes(20));
+  user.totpPending = secret;
+  persist();
+  const label = encodeURIComponent('Nook Photos:' + user.username);
+  sendJson(res, 200, {
+    secret: secret,
+    otpauth:
+      'otpauth://totp/' + label + '?secret=' + secret + '&issuer=' + encodeURIComponent('Nook Photos'),
+  });
+}
+
+async function handleTotpVerify(req, res, user) {
+  const body = await readJsonBody(req);
+  if (!user.totpPending) throw httpError(400, 'no pending two-factor setup');
+  if (!verifyTotp(user.totpPending, body.code)) throw httpError(400, 'invalid code — try again');
+  user.totp = { enabled: true, secret: user.totpPending };
+  delete user.totpPending;
+  persist();
+  sendJson(res, 200, { ok: true, totpEnabled: true });
+}
+
+async function handleTotpDisable(req, res, user) {
+  const body = await readJsonBody(req);
+  if (!user.totp || !user.totp.enabled) throw httpError(400, 'two-factor is not enabled');
+  if (!verifyTotp(user.totp.secret, body.code)) throw httpError(400, 'invalid code');
+  delete user.totp;
+  persist();
+  sendJson(res, 200, { ok: true, totpEnabled: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -1240,6 +1409,12 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/logout' && req.method === 'POST') return handleLogout(res, token);
   if (pathname === '/api/account' && req.method === 'GET') return handleGetAccount(res, user);
   if (pathname === '/api/account' && req.method === 'PATCH') return handlePatchAccount(req, res, user);
+  if (pathname === '/api/sessions' && req.method === 'GET') return handleListSessions(res, user, token);
+  const sessMatch = /^\/api\/sessions\/([a-f0-9]{12})$/.exec(pathname);
+  if (sessMatch && req.method === 'DELETE') return handleRevokeSession(res, user, sessMatch[1]);
+  if (pathname === '/api/account/2fa/setup' && req.method === 'POST') return handleTotpSetup(req, res, user);
+  if (pathname === '/api/account/2fa/verify' && req.method === 'POST') return handleTotpVerify(req, res, user);
+  if (pathname === '/api/account/2fa/disable' && req.method === 'POST') return handleTotpDisable(req, res, user);
   if (pathname === '/api/users' && req.method === 'GET') return handleListUsers(res, user);
   if (pathname === '/api/users' && req.method === 'POST') return handleCreateUser(req, res, user);
   if (pathname === '/api/status' && req.method === 'GET') return handleStatus(res, user);

@@ -11,6 +11,8 @@ export interface User {
   displayName: string;
   email?: string | null;
   role: UserRole;
+  /** Two-factor (TOTP) enabled for this account. */
+  totpEnabled?: boolean;
   createdAt: string;
 }
 
