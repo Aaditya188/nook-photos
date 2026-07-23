@@ -89,8 +89,22 @@ For an always-on setup, install it as a service (Windows: `apps/server/install-g
 - **Private albums** — Hidden and Recently Deleted sit behind a password lock (biometrics on mobile) with a session-scoped unlock.
 - **Client-side ZIP** — multi-select download builds an uncompressed ZIP in the browser with zero dependencies.
 
+## Self-hosting guide
+
+First run: start the server, open the web app, and create your admin account — the in-app **setup guide** (`/welcome`, also under Account → Setup guide) walks you through the rest. The short version:
+
+1. **Keep it always on**
+   - *Windows*: `apps/server/install-gateway-service.ps1` (elevated PowerShell) registers the gateway as an auto-start service via [NSSM](https://nssm.cc).
+   - *macOS*: register a LaunchAgent (`~/Library/LaunchAgents/com.nook.server.plist` with `RunAtLoad` + `KeepAlive`) pointing at the server entry.
+2. **Connect your phone** — open the mobile app, enter your server address, sign in, and start a backup from *Backup & Sync*.
+3. **Reach it from anywhere** (optional) — a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) gives the gateway a public HTTPS hostname with no port forwarding: `cloudflared tunnel create nook`, route a DNS name, point the ingress at `http://localhost:8090`.
+
 ## Repo conventions
 
 - `npm install` at the root hoists everything; `@nook/core` is symlinked into both apps.
 - TypeScript everywhere except `apps/webui` (intentionally dependency-free vanilla JS).
 - The web app reuses the vanilla dashboard's stylesheet and markup classes 1:1, so the two stay visually identical.
+
+## License
+
+[MIT](LICENSE)

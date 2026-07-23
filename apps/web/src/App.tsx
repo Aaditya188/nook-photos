@@ -48,6 +48,7 @@ import {
   PlacesView,
   SearchResults,
 } from './views/views';
+import { Onboarding } from './views/Onboarding';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,15 +61,16 @@ export default function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
-          <ModalProvider>
-            <BrowserRouter>
-              {/* ViewProvider derives the lightbox from the URL → inside the router. */}
+          <BrowserRouter>
+            {/* Modal cards + ViewProvider both need router context (navigation
+                from modals; the lightbox lives in the URL). */}
+            <ModalProvider>
               <ViewProvider>
                 <HashRedirect />
                 <Root />
               </ViewProvider>
-            </BrowserRouter>
-          </ModalProvider>
+            </ModalProvider>
+          </BrowserRouter>
         </ToastProvider>
       </QueryClientProvider>
     </AuthProvider>
@@ -130,6 +132,16 @@ function Shell() {
       return () => clearTimeout(t);
     }
   }, [booted, libQ.isSuccess, libQ.isError]);
+
+  // A fresh admin signup lands in the onboarding guide once.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (localStorage.getItem('nookShowOnboarding') === '1') {
+      localStorage.removeItem('nookShowOnboarding');
+      navigate('/welcome', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Leaving a view drops selection + search.
   const { exitSelect, searchResults, setSearchState } = useView();
@@ -212,6 +224,7 @@ function Shell() {
               <Route path="/place/:label" element={<PlaceView />} />
               <Route path="/albums" element={<AlbumsView />} />
               <Route path="/album/:id" element={<AlbumView />} />
+              <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}

@@ -1,5 +1,6 @@
 /** Account settings, user management, and add-user modal cards. */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { User } from '@nook/core';
 import { useAuth } from '../state/auth';
 import { useModals, useToast } from '../state/ui';
@@ -44,6 +45,7 @@ function AccountCard({ close }: { close: () => void }) {
   const { client, user, setUser } = useAuth();
   const modals = useModals();
   const toast = useToast();
+  const navigate = useNavigate();
   const [account, setAccount] = useState<User | null>(user);
   const [name, setName] = useState(user?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -105,6 +107,16 @@ function AccountCard({ close }: { close: () => void }) {
         <Field label="New password" type="password" value={newPw} onChange={setNewPw} />
       </div>
       {error ? <div className="m-error">{error}</div> : null}
+      <button
+        type="button"
+        className="m-link"
+        onClick={() => {
+          close();
+          navigate('/welcome');
+        }}
+      >
+        Setup guide →
+      </button>
       {account && bioEnrolled(account.id) ? (
         <button
           type="button"
