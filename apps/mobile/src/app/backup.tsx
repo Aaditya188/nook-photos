@@ -1,13 +1,15 @@
+import { useState } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNookClient } from '@nook/core';
+import { useNookClient, humanBytes } from '@nook/core';
 import { Text, Card, Button, Divider } from '@/components/ui';
 import { useSync } from '@/store/sync';
 import { useSettings } from '@/store/settings';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
+import { scanFreeable, freeUpSpace, type FreeableScan } from '@/features/sync/freeup';
 
 export default function BackupScreen() {
   const t = useTheme();
@@ -69,7 +71,16 @@ export default function BackupScreen() {
           {running ? (
             <Button title="Pause" variant="tonal" onPress={cancel} />
           ) : (
-            <Button title="Back Up Now" onPress={() => start(client, { wifiOnly: backup.wifiOnly, originalQuality: backup.originalQuality })} />
+            <Button
+              title="Back Up Now"
+              onPress={() =>
+                start(client, {
+                  wifiOnly: backup.wifiOnly,
+                  originalQuality: backup.originalQuality,
+                  deleteAfterBackup: backup.deleteAfterBackup,
+                })
+              }
+            />
           )}
         </Card>
 
@@ -87,6 +98,12 @@ export default function BackupScreen() {
           </Card>
         </View>
 
+        {/* Free up space */}
+        <View style={{ gap: t.spacing.md }}>
+          <Text variant="label" color={t.colors.onSurfaceVariant}>FREE UP SPACE</Text>
+          <FreeUpCard />
+        </View>
+
         {/* Server config */}
         <View style={{ gap: t.spacing.md }}>
           <Text variant="label" color={t.colors.onSurfaceVariant}>SERVER CONFIGURATION</Text>
@@ -100,6 +117,78 @@ export default function BackupScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function FreeUpCard() {
+  const t = useTheme();
+  const client = useNookClient();
+  const [state, setState] = useState<'idle' | 'scanning' | 'ready' | 'deleting' | 'done' | 'error'>('idle');
+  const [scan, setScan] = useState<FreeableScan | null>(null);
+  const [message, setMessage] = useState('');
+
+  const doScan = async () => {
+    setState('scanning');
+    try {
+      const result = await scanFreeable(client);
+      setScan(result);
+      if (result.count === 0) {
+        setState('done');
+        setMessage('Nothing to remove — everything on this phone is either not yet backed up or already cleaned.');
+      } else {
+        setState('ready');
+        setMessage('');
+      }
+    } catch (e) {
+      setState('error');
+      setMessage(e instanceof Error ? e.message : 'Could not scan');
+    }
+  };
+
+  const doFree = async () => {
+    if (!scan || scan.count === 0) return;
+    setState('deleting');
+    const ok = await freeUpSpace(scan.assetIds);
+    if (ok) {
+      setState('done');
+      setMessage(`Removed ${scan.count} item${scan.count === 1 ? '' : 's'} · freed about ${humanBytes(scan.bytes)}.`);
+      setScan(null);
+    } else {
+      // The OS dialog was declined (or deletion failed) — keep the scan.
+      setState('ready');
+    }
+  };
+
+  return (
+    <Card style={{ gap: t.spacing.md }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md }}>
+        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: t.colors.primaryContainer, alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialCommunityIcons name="broom" size={24} color={t.colors.onPrimary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text variant="titleSmall">Free up space on this phone</Text>
+          <Text variant="caption" color={state === 'error' ? t.colors.error : t.colors.onSurfaceVariant}>
+            {state === 'scanning'
+              ? 'Checking what is safely backed up…'
+              : state === 'ready' && scan
+                ? `${scan.count} item${scan.count === 1 ? '' : 's'} verified on your server · about ${humanBytes(scan.bytes)}`
+                : state === 'deleting'
+                  ? 'Removing…'
+                  : message || 'Removes local copies only after verifying they exist on your server.'}
+          </Text>
+        </View>
+      </View>
+      {state === 'ready' && scan && scan.count > 0 ? (
+        <Button title={`Remove ${scan.count} item${scan.count === 1 ? '' : 's'} from phone`} onPress={doFree} />
+      ) : (
+        <Button
+          title={state === 'scanning' ? 'Scanning…' : 'Scan for freeable space'}
+          variant="tonal"
+          disabled={state === 'scanning' || state === 'deleting'}
+          onPress={doScan}
+        />
+      )}
+    </Card>
   );
 }
 

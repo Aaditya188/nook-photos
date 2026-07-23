@@ -28,6 +28,7 @@ export type BackupPhase =
 export interface BackupPrefs {
   wifiOnly: boolean;
   originalQuality: boolean;
+  deleteAfterBackup?: boolean;
 }
 
 export interface BackupHandle {
@@ -105,6 +106,7 @@ export async function runBackup(client: NookClient, prefs: BackupPrefs, handle: 
   const total = remaining.length;
   let uploaded = 0;
   let failed = 0;
+  const uploadedIds: string[] = [];
   handle.onPhase({ state: 'uploading', done: 0, total, uploaded, failed });
 
   for (let i = 0; i < remaining.length; i++) {
@@ -115,10 +117,21 @@ export async function runBackup(client: NookClient, prefs: BackupPrefs, handle: 
     try {
       await backupAsset(client, remaining[i]!, prefs);
       uploaded++;
+      uploadedIds.push(remaining[i]!.id);
     } catch {
       failed++;
     }
     handle.onPhase({ state: 'uploading', done: i + 1, total, uploaded, failed });
+  }
+
+  // "Delete from phone after backup": one batch at the end (the OS shows its
+  // own confirmation), and only for assets that uploaded successfully.
+  if (prefs.deleteAfterBackup && uploadedIds.length > 0) {
+    try {
+      await MediaLibrary.deleteAssetsAsync(uploadedIds);
+    } catch {
+      /* user declined or OS refused — backup itself already succeeded */
+    }
   }
 
   handle.onPhase({ state: 'done', uploaded, failed });
