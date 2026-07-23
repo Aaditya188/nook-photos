@@ -51,6 +51,7 @@ import {
 import { Onboarding } from './views/Onboarding';
 import { SharedAlbum } from './views/SharedAlbum';
 import { BackupHealthView } from './views/BackupHealth';
+import { TripsView, TripView } from './views/Trips';
 
 // Leaflet is heavy — the map route loads on demand.
 const MapView = lazy(() => import('./views/MapView').then((m) => ({ default: m.MapView })));
@@ -185,7 +186,10 @@ function Shell() {
         items.push({ to: '/people', title: 'People', icon: 'people', count: peopleQ.data ? peopleQ.data.length : null });
         items.push({ to: '/places', title: 'Places', icon: 'places', count: placesQ.data ? placesQ.data.length : null });
       }
-      if (hasGps) items.push({ to: '/map', title: 'Map', icon: 'map', count: null });
+      if (hasGps) {
+        items.push({ to: '/trips', title: 'Trips', icon: 'trips', count: null });
+        items.push({ to: '/map', title: 'Map', icon: 'map', count: null });
+      }
       groups.push({ label: 'People & Places', items });
     }
     groups.push({
@@ -249,6 +253,8 @@ function Shell() {
                   </Suspense>
                 }
               />
+              <Route path="/trips" element={<TripsView />} />
+              <Route path="/trip/:id" element={<TripView />} />
               <Route path="/backup" element={<BackupHealthView />} />
               <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />

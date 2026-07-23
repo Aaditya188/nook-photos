@@ -3076,3 +3076,51 @@ h3.day-header {
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
+
+/* ------------------------------------------------------------------- trips */
+
+.trip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.trip-card {
+  position: relative;
+  height: 210px;
+  border: none;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--tile-bg);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.16s ease;
+}
+
+.trip-card:hover { transform: translateY(-2px); }
+
+.trip-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trip-grad {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.75));
+}
+
+.trip-cap {
+  position: absolute;
+  left: 16px;
+  right: 14px;
+  bottom: 13px;
+  text-align: left;
+  color: #fff;
+}
+
+.trip-title { font-size: 18px; font-weight: 750; letter-spacing: -0.4px; }
+.trip-sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.78); margin-top: 2px; }
