@@ -43,7 +43,7 @@ export function PhotoGrid({
           onPress={() => (selectionMode ? onToggleSelect?.(item.id) : onPressPhoto(item, index))}
           onLongPress={() => onToggleSelect?.(item.id)}
           style={{ width: size, height: size, padding: GAP / 2 }}>
-          <View style={{ flex: 1, borderRadius: 3, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
+          <View style={{ flex: 1, borderRadius: 5, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
             <RemoteThumb photoId={item.id} displaySize={cell} style={{ width: '100%', height: '100%' }} />
             {item.mediaType === 'video' ? (
               <View style={styles.videoBadge}>

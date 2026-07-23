@@ -89,7 +89,7 @@ export default function PhotoViewer() {
             <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
               <IconBtn
                 name={current.favorite ? 'favorite' : 'favorite-border'}
-                color={current.favorite ? '#ff5a79' : '#fff'}
+                color={current.favorite ? '#ff6b8a' : '#fff'}
                 onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
               />
               <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />

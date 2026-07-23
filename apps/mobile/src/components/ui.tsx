@@ -99,20 +99,20 @@ export function Button({
       disabled={isDisabled}
       style={(state) => [
         {
-          height: 52,
-          borderRadius: t.radius.md,
+          height: 50,
+          borderRadius: 14,
           backgroundColor: bg,
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
-          opacity: isDisabled ? 0.5 : (state as any).pressed ? 0.85 : 1,
+          opacity: isDisabled ? 0.5 : (state as any).pressed ? 0.9 : 1,
         },
         style as any,
       ]}>
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
-        <RNText style={{ color: fg, fontSize: 16, fontWeight: '600' }}>{title}</RNText>
+        <RNText style={{ color: fg, fontSize: 15.5, fontWeight: '700', letterSpacing: 0.1 }}>{title}</RNText>
       )}
     </Pressable>
   );
