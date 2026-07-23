@@ -7,12 +7,9 @@ import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import type { Person, StatusRecord } from '@nook/core';
 import { fmtBytes, fmtCount } from '../lib/format';
-import { ICON, SVG_BACK, THEME_ICONS, Svg } from '../lib/icons';
+import { ICON, SVG_BACK, Svg } from '../lib/icons';
 import { useLazyBlob } from './Tile';
 import { ProfileMenu } from './ProfileMenu';
-import { useTheme } from '../hooks/useTheme';
-import { useAuth } from '../state/auth';
-import { useToast } from '../state/ui';
 
 // ------------------------------------------------------------------- top bar
 
@@ -31,9 +28,6 @@ export function TopBar({
   fetching: boolean;
   onToggleNav: () => void;
 }) {
-  const { pref, cycle } = useTheme();
-  const toast = useToast();
-
   let statusText: string;
   let pillCls = 'status-pill';
   if (!online) {
@@ -82,14 +76,6 @@ export function TopBar({
       </div>
 
       <div className="topbar-right">
-        <button
-          type="button"
-          className="theme-toggle"
-          aria-label="Switch theme"
-          title={'Theme: ' + pref[0].toUpperCase() + pref.slice(1)}
-          onClick={() => toast('Theme: ' + cycle())}
-          dangerouslySetInnerHTML={{ __html: THEME_ICONS[pref] || THEME_ICONS.dark }}
-        />
         <div className="storage-summary">
           {st ? fmtBytes(st.usedBytes) + ' of ' + fmtBytes(st.totalBytes) : ''}
         </div>

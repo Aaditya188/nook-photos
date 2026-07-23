@@ -3626,3 +3626,58 @@ h3.day-header {
   .editor .ed-groups { flex-direction: row; flex-wrap: wrap; }
   .editor .ed-group { width: calc(50% - 11px); }
 }
+
+/* --------------------------------------------------- settings extra fields */
+
+.set-input-wrap {
+  display: flex;
+  align-items: stretch;
+  background: var(--input-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.set-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14.5px;
+  padding: 12px 14px;
+}
+
+.set-input-wrap input:focus { outline: none; }
+.set-input-wrap.locked input { color: var(--text-60); }
+.set-input-wrap:focus-within { border-color: var(--green); }
+
+.set-input-suffix {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 16px;
+  cursor: pointer;
+  border-left: 1px solid var(--hairline);
+}
+
+.set-input-suffix:hover { background: var(--hover); }
+
+.set-field input[type='number'],
+.set-field input[type='url'] {
+  background: var(--input-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  color: var(--text);
+  font-size: 14.5px;
+  padding: 12px 14px;
+}
+.set-field input:focus { outline: 2px solid var(--green); outline-offset: 0; border-color: transparent; }
+.set-hint { font-size: 12px; color: var(--text-45); font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+/* Backup Health: give the pending grid room to breathe. */
+.bh-pending { margin-top: 30px; }
+.bh-pending-grid { margin-top: 14px; }

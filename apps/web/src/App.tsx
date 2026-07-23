@@ -130,6 +130,10 @@ function Shell() {
   useStickyHeights();
   useGridZoomGestures(contentRef);
 
+  // Search is a photo-library affordance — hide it on admin/utility pages.
+  const noSearch = ['/settings', '/backup', '/welcome', '/map', '/trips'];
+  const showSearch = !noSearch.some((p) => location.pathname.startsWith(p));
+
   const photos = libQ.data || [];
   const visible = useMemo(() => photos.filter((p) => !p.hidden), [photos]);
   const hiddenCount = photos.length - visible.length;
@@ -220,8 +224,8 @@ function Shell() {
       <div className="shell">
         <Sidebar groups={navGroups} open={navOpen} onClose={() => setNavOpen(false)} />
         <main className="content" id="content" ref={contentRef}>
-          <SearchBox photos={visible} />
-          {searchResults !== null ? (
+          {showSearch ? <SearchBox photos={visible} /> : null}
+          {searchResults !== null && showSearch ? (
             <SearchResults />
           ) : (
             <Routes>

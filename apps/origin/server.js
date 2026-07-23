@@ -105,12 +105,38 @@ function detectTotalBytes(dir) {
   return 1000000000000; // 1 TB
 }
 
+/** Free bytes on the data disk (best-effort; null when unavailable). */
+function detectAvailableBytes(dir) {
+  try {
+    if (typeof fs.statfsSync === 'function') {
+      const st = fs.statfsSync(dir);
+      const avail = st.bavail * st.bsize;
+      if (Number.isFinite(avail) && avail >= 0) return avail;
+    }
+  } catch (err) {
+    /* unavailable */
+  }
+  return null;
+}
+
+// Admin-editable settings (persisted in db.settings), overriding env/detection.
+function serverName() {
+  return (db.settings && db.settings.serverName) || SERVER_NAME;
+}
+function storageTotalBytes() {
+  const override = db.settings && Number(db.settings.storageTotalBytes);
+  return Number.isFinite(override) && override > 0 ? override : TOTAL_BYTES;
+}
+function publicUrl() {
+  return (db.settings && db.settings.publicUrl) || '';
+}
+
 // ---------------------------------------------------------------------------
 // Persistence
 // db.json: {users:[], tokens:{token:{userId,createdAt}}, photos:[], albums:[]}
 // ---------------------------------------------------------------------------
 
-const db = { users: [], tokens: {}, photos: [], albums: [] };
+const db = { users: [], tokens: {}, photos: [], albums: [], settings: {} };
 
 function bootFs() {
   for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR]) {
@@ -123,6 +149,7 @@ function bootFs() {
       if (raw && raw.tokens && typeof raw.tokens === 'object' && !Array.isArray(raw.tokens)) db.tokens = raw.tokens;
       if (raw && Array.isArray(raw.photos)) db.photos = raw.photos;
       if (raw && Array.isArray(raw.albums)) db.albums = raw.albums;
+      if (raw && raw.settings && typeof raw.settings === 'object' && !Array.isArray(raw.settings)) db.settings = raw.settings;
     } catch (err) {
       console.error('warn: could not parse ' + DB_PATH + ', starting empty: ' + err.message);
     }
@@ -560,12 +587,13 @@ function handlePing(res) {
 
 function handleServer(res) {
   sendJson(res, 200, {
-    name: SERVER_NAME,
+    name: serverName(),
     model: SERVER_MODEL,
     version: VERSION,
     setupRequired: setupRequired(),
     uptimeSec: Math.floor(process.uptime()),
     ai: indexerAvailable,
+    publicUrl: publicUrl(),
   });
 }
 
@@ -871,6 +899,40 @@ async function handleTotpVerify(req, res, user) {
   sendJson(res, 200, { ok: true, totpEnabled: true });
 }
 
+function handleGetServerSettings(res, user) {
+  if (user.role !== 'admin') throw httpError(403, 'admin only');
+  sendJson(res, 200, {
+    serverName: serverName(),
+    storageTotalBytes: storageTotalBytes(),
+    detectedTotalBytes: TOTAL_BYTES,
+    availableBytes: detectAvailableBytes(DATA_DIR),
+    publicUrl: publicUrl(),
+  });
+}
+
+async function handlePatchServerSettings(req, res, user) {
+  if (user.role !== 'admin') throw httpError(403, 'admin only');
+  const body = await readJsonBody(req);
+  if (!db.settings || typeof db.settings !== 'object') db.settings = {};
+  if (typeof body.serverName === 'string') {
+    const name = body.serverName.trim().slice(0, 80);
+    if (name) db.settings.serverName = name;
+    else delete db.settings.serverName;
+  }
+  if (body.storageTotalBytes !== undefined) {
+    const n = Number(body.storageTotalBytes);
+    if (Number.isFinite(n) && n > 0) db.settings.storageTotalBytes = Math.round(n);
+    else delete db.settings.storageTotalBytes; // 0/blank → back to auto-detect
+  }
+  if (typeof body.publicUrl === 'string') {
+    const url = body.publicUrl.trim().replace(/\/+$/, '').slice(0, 200);
+    if (url) db.settings.publicUrl = url;
+    else delete db.settings.publicUrl;
+  }
+  persist();
+  handleGetServerSettings(res, user);
+}
+
 async function handleTotpDisable(req, res, user) {
   const body = await readJsonBody(req);
   if (!user.totp || !user.totp.enabled) throw httpError(400, 'two-factor is not enabled');
@@ -1010,14 +1072,15 @@ function handleStatus(res, user) {
   }
   sendJson(res, 200, {
     server: {
-      name: SERVER_NAME,
+      name: serverName(),
       model: SERVER_MODEL,
       version: VERSION,
       uptimeSec: Math.floor(process.uptime()),
     },
     storage: {
       usedBytes: photoBytes + videoBytes,
-      totalBytes: TOTAL_BYTES,
+      totalBytes: storageTotalBytes(),
+      availableBytes: detectAvailableBytes(DATA_DIR),
       photoBytes: photoBytes,
       videoBytes: videoBytes,
     },
@@ -1415,6 +1478,8 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/account/2fa/setup' && req.method === 'POST') return handleTotpSetup(req, res, user);
   if (pathname === '/api/account/2fa/verify' && req.method === 'POST') return handleTotpVerify(req, res, user);
   if (pathname === '/api/account/2fa/disable' && req.method === 'POST') return handleTotpDisable(req, res, user);
+  if (pathname === '/api/server-settings' && req.method === 'GET') return handleGetServerSettings(res, user);
+  if (pathname === '/api/server-settings' && req.method === 'PATCH') return handlePatchServerSettings(req, res, user);
   if (pathname === '/api/users' && req.method === 'GET') return handleListUsers(res, user);
   if (pathname === '/api/users' && req.method === 'POST') return handleCreateUser(req, res, user);
   if (pathname === '/api/status' && req.method === 'GET') return handleStatus(res, user);

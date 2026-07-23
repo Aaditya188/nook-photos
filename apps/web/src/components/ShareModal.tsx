@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useAuth } from '../state/auth';
+import { useServerInfoQ } from '../state/data';
 import { useToast } from '../state/ui';
 
 interface ShareState {
@@ -32,7 +33,10 @@ export function ShareCard({ albumId, close }: { albumId: string; close: () => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumId]);
 
-  const fullUrl = state?.url ? window.location.origin + state.url : '';
+  // Prefer the admin-configured public URL so links work off the local network.
+  const serverQ = useServerInfoQ();
+  const base = (serverQ.data?.publicUrl || window.location.origin).replace(/\/+$/, '');
+  const fullUrl = state?.url ? base + state.url : '';
 
   const create = async () => {
     setBusy(true);

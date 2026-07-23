@@ -24,6 +24,8 @@ export interface ServerInfo {
   uptimeSec: number;
   /** true when the local AI indexer is reachable (search/people/places available). */
   ai?: boolean;
+  /** Admin-configured public base URL (share links, onboarding). */
+  publicUrl?: string;
 }
 
 export interface PingResponse {
@@ -124,7 +126,7 @@ export interface Place {
 
 export interface StatusRecord {
   server: { name: string; model: string; version: string; uptimeSec: number };
-  storage: { usedBytes: number; totalBytes: number; photoBytes: number; videoBytes: number };
+  storage: { usedBytes: number; totalBytes: number; availableBytes?: number | null; photoBytes: number; videoBytes: number };
   library: { items: number; photos: number; videos: number; lastBackupAt: string | null };
 }
 

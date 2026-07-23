@@ -156,11 +156,13 @@ export function BackupHealthView() {
         </section>
 
         {pending.length > 0 ? (
-          <section className="bh-section">
+          <section className="bh-section bh-pending">
             <div className="bh-section-head">
               <h2>Waiting to upload · {fmtCount(pending.length)}</h2>
             </div>
-            <PhotoGrid list={pending} grouped={false} />
+            <div className="bh-pending-grid">
+              <PhotoGrid list={pending} grouped={false} />
+            </div>
           </section>
         ) : null}
       </div>

@@ -3,8 +3,9 @@
  * Users, Server). Consolidates account editing, 2FA, signed-in devices,
  * user management, and server info that used to live in scattered modals.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import type { User } from '@nook/core';
 import { useAuth } from '../state/auth';
@@ -103,6 +104,7 @@ function ProfileSection() {
   const [newPw, setNewPw] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailLocked, setEmailLocked] = useState(true);
 
   useEffect(() => {
     client.account().then((a) => {
@@ -131,6 +133,7 @@ function ProfileSection() {
       setAccount(updated);
       setNewPw('');
       setCurPw('');
+      setEmailLocked(true);
       toast('Account updated');
     } catch (e) {
       setError((e as Error).message || 'Could not update account');
@@ -143,7 +146,33 @@ function ProfileSection() {
       <h2 className="set-h">Profile</h2>
       <div className="set-form">
         <Field label="Name" type="text" value={name} onChange={setName} />
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
+        <label className="set-field">
+          <span>Email</span>
+          <div className={'set-input-wrap' + (emailLocked ? ' locked' : '')}>
+            <input
+              type="email"
+              value={email}
+              readOnly={emailLocked}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="set-input-suffix"
+              onClick={() => {
+                if (emailLocked) setEmailLocked(false);
+                else {
+                  setEmail(account?.email || '');
+                  setEmailLocked(true);
+                }
+              }}
+            >
+              {emailLocked ? 'Change' : 'Cancel'}
+            </button>
+          </div>
+        </label>
         <div className="set-note">
           @{account?.username}
           {account?.role === 'admin' ? ' · Administrator' : ''}
@@ -491,17 +520,66 @@ function AddUserCard({ close, onCreated }: { close: () => void; onCreated: () =>
 
 // ------------------------------------------------------------------- server
 
+const GB = 1024 * 1024 * 1024;
+
 function ServerSection() {
+  const { client, user } = useAuth();
+  const qc = useQueryClient();
+  const toast = useToast();
   const statusQ = useStatusQ();
   const serverQ = useServerInfoQ();
   const s = statusQ.data;
   const st = s?.storage;
   const nav = useNavigate();
+  const isAdmin = user?.role === 'admin';
+
+  const [settings, setSettings] = useState<{
+    serverName: string;
+    storageTotalBytes: number;
+    detectedTotalBytes: number;
+    availableBytes: number | null;
+    publicUrl: string;
+  } | null>(null);
+  const [name, setName] = useState('');
+  const [allocGb, setAllocGb] = useState('');
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    client.serverSettings().then((j) => {
+      setSettings(j);
+      setName(j.serverName);
+      setAllocGb(j.storageTotalBytes ? String(Math.round(j.storageTotalBytes / GB)) : '');
+      setUrl(j.publicUrl);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
   const pct = st && st.totalBytes > 0 ? Math.min(100, (st.usedBytes / st.totalBytes) * 100) : 0;
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const updated = await client.updateServerSettings({
+        serverName: name.trim(),
+        storageTotalBytes: allocGb.trim() ? Number(allocGb) * GB : 0,
+        publicUrl: url.trim(),
+      });
+      setSettings(updated);
+      qc.invalidateQueries({ queryKey: ['status'] });
+      qc.invalidateQueries({ queryKey: ['server'] });
+      toast('Server settings saved');
+    } catch (e) {
+      toast((e as Error).message || 'Could not save');
+    }
+    setBusy(false);
+  };
 
   return (
     <section className="set-section">
       <h2 className="set-h">Server</h2>
+
       <div className="set-server-card">
         <div className="set-server-name">{s?.server?.name || serverQ.data?.name || 'nook.local'}</div>
         <div className="set-row-sub">
@@ -514,13 +592,67 @@ function ServerSection() {
               <div className="set-storage-fill" style={{ width: pct + '%' }} />
             </div>
             <div className="set-row-sub">
-              {fmtBytes(st.usedBytes)} of {fmtBytes(st.totalBytes)} used
-              {s?.library ? ' · ' + s.library.photos.toLocaleString('en-US') + ' photos, ' + s.library.videos.toLocaleString('en-US') + ' videos' : ''}
+              {fmtBytes(st.usedBytes)} used of {fmtBytes(st.totalBytes)} allocated
+              {st.availableBytes != null ? ' · ' + fmtBytes(st.availableBytes) + ' free on disk' : ''}
             </div>
+            {s?.library ? (
+              <div className="set-row-sub">
+                {s.library.photos.toLocaleString('en-US')} photos · {s.library.videos.toLocaleString('en-US')} videos
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
-      <div className="set-actions">
+
+      {isAdmin ? (
+        <>
+          <h3 className="set-subh">Configuration</h3>
+          <div className="set-form">
+            <Field label="Server name" type="text" value={name} onChange={setName} />
+            <label className="set-field">
+              <span>Max storage (GB)</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                placeholder={
+                  settings
+                    ? 'Auto — ' + Math.round(settings.detectedTotalBytes / GB) + ' GB detected'
+                    : 'Auto'
+                }
+                value={allocGb}
+                onChange={(e) => setAllocGb(e.target.value.replace(/[^\d]/g, ''))}
+              />
+              <span className="set-hint">
+                {settings?.availableBytes != null
+                  ? fmtBytes(settings.availableBytes) + ' free on the data disk right now.'
+                  : 'Leave blank to auto-detect the disk size.'}
+              </span>
+            </label>
+            <label className="set-field">
+              <span>Public URL</span>
+              <input
+                type="url"
+                placeholder="https://photos.yourdomain.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <span className="set-hint">Used for share links and the mobile/onboarding setup.</span>
+            </label>
+          </div>
+          <div className="set-actions">
+            <button type="button" className="m-btn primary" disabled={busy} onClick={save}>
+              {busy ? 'Saving…' : 'Save server settings'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="set-note">Only administrators can change server settings.</div>
+      )}
+
+      <div className="set-actions" style={{ marginTop: 8 }}>
         <button type="button" className="m-btn" onClick={() => nav('/backup')}>Backup health</button>
         <button type="button" className="m-btn" onClick={() => nav('/welcome')}>Setup guide</button>
       </div>

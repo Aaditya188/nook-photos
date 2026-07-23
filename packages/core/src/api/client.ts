@@ -290,4 +290,28 @@ export class NookClient {
       body: { code },
     });
   }
+
+  // ---- server settings (admin) ----
+  serverSettings() {
+    return this.request<{
+      serverName: string;
+      storageTotalBytes: number;
+      detectedTotalBytes: number;
+      availableBytes: number | null;
+      publicUrl: string;
+    }>('GET', '/api/server-settings');
+  }
+  updateServerSettings(input: {
+    serverName?: string;
+    storageTotalBytes?: number;
+    publicUrl?: string;
+  }) {
+    return this.request<{
+      serverName: string;
+      storageTotalBytes: number;
+      detectedTotalBytes: number;
+      availableBytes: number | null;
+      publicUrl: string;
+    }>('PATCH', '/api/server-settings', { body: input });
+  }
 }
