@@ -20,13 +20,17 @@ import { authorizePhoto } from './db.js';
 import { getSizedThumb, getViewJpeg } from './thumbs.js';
 import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
 
-// The web dashboard (apps/webui) — the improved vanilla-JS UI, served at /.
-const WEB_DIST = path.resolve(
-  path.dirname(url.fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  'webui',
-);
+// The web dashboard served at /: the built React app (apps/web/dist) by
+// default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
+const APPS_DIR = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
+const WEB_CANDIDATES = [
+  process.env.NOOK_WEB_DIST,
+  path.join(APPS_DIR, 'web', 'dist'),
+  path.join(APPS_DIR, 'webui'),
+].filter((p): p is string => !!p);
+const WEB_DIST =
+  WEB_CANDIDATES.find((p) => fs.existsSync(path.join(p, 'index.html'))) ??
+  path.join(APPS_DIR, 'webui');
 const HAS_WEB = fs.existsSync(path.join(WEB_DIST, 'index.html'));
 
 const app = Fastify({

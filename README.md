@@ -52,6 +52,25 @@ cd nook-photos
 npm install
 ```
 
+### Origin server (the photo store)
+
+```bash
+cd apps/origin
+node server.js      # listens on :8080; library lives in ./data (NOOK_DATA_DIR to change)
+```
+
+Optional AI (semantic search, faces, places): see [`apps/origin/indexer`](apps/origin/indexer) — a Python sidecar the server auto-detects on :8091.
+
+### Gateway (thumbnails, streaming, serves the web app)
+
+```bash
+cd apps/server
+npm run build -w @nook/web            # build the dashboard once
+../../node_modules/.bin/tsx src/index.ts   # listens on :8090 → open http://localhost:8090
+```
+
+For an always-on setup, `apps/origin/install-services.ps1` and `apps/server/install-gateway-service.ps1` register both as Windows services (macOS: LaunchAgents — see the in-app setup guide).
+
 ### Web dashboard (dev)
 
 ```bash
@@ -69,15 +88,6 @@ npx expo start      # scan the QR with your phone's camera → opens in Expo Go
 ```
 
 On first launch, point the app at your server URL, test the connection, and sign in.
-
-### Gateway
-
-```bash
-cd apps/server
-../../node_modules/.bin/tsx src/index.ts   # listens on :8090, proxies to the origin on :8080
-```
-
-For an always-on setup, install it as a service (Windows: `apps/server/install-gateway-service.ps1` uses NSSM) and point your reverse proxy or Cloudflare Tunnel at port 8090.
 
 ## Highlights
 

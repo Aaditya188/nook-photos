@@ -1,30 +1,45 @@
-# Installs the nook-gateway performance server as an always-on Windows service.
-# Run elevated. Serves :8090, proxies to the origin :8080. Same data dir.
-$ErrorActionPreference = "Continue"
-$log = "D:\nook-photos-rn\apps\server\install-gateway.log"
-"=== install-gateway $(Get-Date -Format o) ===" | Out-File $log -Encoding utf8
-$nssm = "C:\Users\praka\AppData\Local\Microsoft\WinGet\Packages\NSSM.NSSM_Microsoft.Winget.Source_8wekyb3d8bbwe\nssm-2.24-101-g897c7ad\win64\nssm.exe"
-$node = "C:\Program Files\nodejs\node.exe"
-$tsx = "D:\nook-photos-rn\node_modules\tsx\dist\cli.mjs"
-$entry = "D:\nook-photos-rn\apps\server\src\index.ts"
-New-Item -ItemType Directory -Force "D:\nook-photos-rn\apps\server\logs" | Out-Null
+# Installs the Nook gateway (Fastify + sharp; serves the web app, sized
+# thumbnails, and range-streamed media) as an always-on Windows service via
+# NSSM (https://nssm.cc). Run from an ELEVATED PowerShell in this folder:
+#   Set-ExecutionPolicy -Scope Process Bypass -Force
+#   .\install-gateway-service.ps1 [-Port 8090] [-Origin http://127.0.0.1:8080]
+# Pure ASCII on purpose: Windows PowerShell 5.1 chokes on fancy dashes.
 
-function Run($d, $sb) { "--- $d ---" | Out-File $log -Append -Encoding utf8; try { & $sb 2>&1 | Out-File $log -Append -Encoding utf8 } catch { "ERR $_" | Out-File $log -Append -Encoding utf8 } }
+param(
+  [int]$Port = 8090,
+  [string]$Origin = 'http://127.0.0.1:8080'
+)
 
-if (Get-Service nook-gateway -ErrorAction SilentlyContinue) {
-  Run "stop+remove existing" { & $nssm stop nook-gateway; Start-Sleep 1; & $nssm remove nook-gateway confirm }
+$ErrorActionPreference = 'Stop'
+
+function Find-Nssm {
+  $cmd = Get-Command nssm -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  $winget = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\NSSM*" -Recurse -Filter nssm.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($winget) { return $winget.FullName }
+  throw "nssm.exe not found. Install it first: winget install NSSM.NSSM"
 }
 
-Run "install"       { & $nssm install nook-gateway $node "`"$tsx`" `"$entry`"" }
-Run "appdir"        { & $nssm set nook-gateway AppDirectory "D:\nook-photos-rn\apps\server" }
-Run "env"           { & $nssm set nook-gateway AppEnvironmentExtra "NOOK_DATA_DIR=D:\photos" "NOOK_ORIGIN=http://127.0.0.1:8080" "NOOK_GATEWAY_PORT=8090" "NODE_ENV=production" }
-Run "autostart"     { & $nssm set nook-gateway Start SERVICE_AUTO_START }
-Run "stdout"        { & $nssm set nook-gateway AppStdout "D:\nook-photos-rn\apps\server\logs\gateway.log" }
-Run "stderr"        { & $nssm set nook-gateway AppStderr "D:\nook-photos-rn\apps\server\logs\gateway.log" }
-Run "rotate"        { & $nssm set nook-gateway AppRotateFiles 1; & $nssm set nook-gateway AppRotateBytes 10485760 }
-Run "start"         { & $nssm start nook-gateway }
+$here = $PSScriptRoot
+$repo = Resolve-Path (Join-Path $here '..\..')
+$nssm = Find-Nssm
+$node = (Get-Command node).Source
+$tsx = Join-Path $repo 'node_modules\tsx\dist\cli.mjs'
+$entry = Join-Path $here 'src\index.ts'
+$logs = Join-Path $here 'logs'
+New-Item -ItemType Directory -Force $logs | Out-Null
 
-Start-Sleep 3
-"=== state ===" | Out-File $log -Append -Encoding utf8
-Get-Service nook-gateway | Format-Table -AutoSize Name, Status, StartType | Out-String | Out-File $log -Append -Encoding utf8
-"=== DONE $(Get-Date -Format o) ===" | Out-File $log -Append -Encoding utf8
+Write-Host "nssm : $nssm"
+Write-Host "entry: $entry"
+
+& $nssm install nook-gateway $node $tsx $entry 2>$null
+& $nssm set nook-gateway AppDirectory $here
+& $nssm set nook-gateway AppEnvironmentExtra "NOOK_GATEWAY_PORT=$Port" "NOOK_ORIGIN=$Origin"
+& $nssm set nook-gateway Start SERVICE_AUTO_START
+& $nssm set nook-gateway AppStdout (Join-Path $logs 'gateway.log')
+& $nssm set nook-gateway AppStderr (Join-Path $logs 'gateway.err.log')
+
+& $nssm restart nook-gateway 2>$null
+if (-not $?) { & $nssm start nook-gateway 2>$null }
+Get-Service nook-gateway | Select-Object Name, Status, StartType
+Write-Host "Done. Gateway on port $Port -> origin $Origin"

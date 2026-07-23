@@ -44,3 +44,7 @@ Thumbs.db
 # server data (never commit the photo store)
 apps/server/data/
 data/
+
+# service logs
+apps/*/logs/
+*.log
