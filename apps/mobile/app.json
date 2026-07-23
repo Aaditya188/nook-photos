@@ -19,7 +19,7 @@
     "android": {
       "package": "in.ghantacoder.nookphotos",
       "adaptiveIcon": {
-        "backgroundColor": "#0070eb",
+        "backgroundColor": "#0b0b0c",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"

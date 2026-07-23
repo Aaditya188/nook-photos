@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NookApiError } from '@nook/core';
 import { Screen, Text, Button, TextField, Card } from '@/components/ui';
+import { AuthHero } from '@/components/AuthHero';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 
@@ -41,22 +42,13 @@ export default function ServerConfigScreen() {
   }
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.xxl, gap: t.spacing.xl }}>
-      <View style={{ gap: t.spacing.sm }}>
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: t.radius.lg,
-            backgroundColor: t.colors.primaryContainer,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <MaterialCommunityIcons name="cloud-lock-outline" size={30} color={t.colors.onPrimary} />
-        </View>
-        <Text variant="displayLarge">Nook Photos</Text>
+    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.lg, gap: t.spacing.xl }}>
+      <AuthHero />
+
+      <View style={{ gap: t.spacing.xs }}>
+        <Text variant="headline">Connect your server</Text>
         <Text variant="body" color={t.colors.onSurfaceVariant}>
-          Connect to your Nook server to back up and browse your photos.
+          Point the app at your Nook server to back up and browse your photos.
         </Text>
       </View>
 

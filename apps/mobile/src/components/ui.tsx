@@ -5,6 +5,8 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   Text as RNText,
@@ -179,22 +181,77 @@ export function Divider() {
  * optional label — the mobile echo of the web boot loader. `full` fills and
  * centres the screen.
  */
+/**
+ * The Nook loading mark — mirrors the web BootLoader: a green glyph tile with
+ * two counter-rotating arc rings and the "nook" wordmark beneath. Used for the
+ * boot splash (full) and inline (full={false}) wherever heavy fetches happen.
+ */
 export function BrandLoader({ label, full = true }: { label?: string; full?: boolean }) {
   const t = useTheme();
+  const spin = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spin]);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const rotateBack = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-360deg'] });
+
   const inner = (
-    <View style={{ alignItems: 'center', gap: 16 }}>
-      <View
-        style={{
-          width: 62,
-          height: 62,
-          borderRadius: 18,
-          backgroundColor: t.colors.primaryContainer,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <MaterialCommunityIcons name="image-multiple" size={30} color={t.colors.onPrimary} />
+    <View style={{ alignItems: 'center', gap: 18 }}>
+      <View style={{ width: 78, height: 78, alignItems: 'center', justifyContent: 'center' }}>
+        {/* Outer arc — one visible edge, spinning forward. */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: 78,
+            height: 78,
+            borderRadius: 39,
+            borderWidth: 2.5,
+            borderColor: 'transparent',
+            borderTopColor: t.colors.primaryContainer,
+            transform: [{ rotate }],
+          }}
+        />
+        {/* Inner arc — counter-rotating, dimmer. */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            borderWidth: 2,
+            borderColor: 'transparent',
+            borderTopColor: t.colors.primaryContainer,
+            opacity: 0.4,
+            transform: [{ rotate: rotateBack }],
+          }}
+        />
+        {/* Green brand tile with the photo glyph. */}
+        <View
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 14,
+            backgroundColor: t.colors.primaryContainer,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <MaterialCommunityIcons name="image-multiple" size={24} color={t.colors.onPrimary} />
+        </View>
       </View>
-      <ActivityIndicator color={t.colors.primaryContainer} />
+      <Text variant="title" color={t.colors.onSurface} style={{ letterSpacing: 1 }}>
+        nook
+      </Text>
       {label ? (
         <Text variant="caption" color={t.colors.onSurfaceVariant}>
           {label}

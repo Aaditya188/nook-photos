@@ -3,6 +3,7 @@ import { View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { NookApiError } from '@nook/core';
 import { Screen, Text, Button, TextField } from '@/components/ui';
+import { AuthHero } from '@/components/AuthHero';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 
@@ -41,11 +42,13 @@ export default function LoginScreen() {
   const host = serverUrl?.replace(/^https?:\/\//, '') ?? '';
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.xxl, gap: t.spacing.xl }}>
+    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.lg, gap: t.spacing.xl }}>
+      <AuthHero />
+
       <View style={{ gap: t.spacing.xs }}>
-        <Text variant="displayLarge">{isSetup ? 'Create account' : 'Welcome back'}</Text>
+        <Text variant="headline">{isSetup ? 'Create your account' : 'Welcome back'}</Text>
         <Text variant="body" color={t.colors.onSurfaceVariant}>
-          {isSetup ? 'First account becomes the admin.' : 'Sign in to '}{!isSetup ? host : ''}
+          {isSetup ? 'The first account becomes the admin.' : 'Sign in to ' + host}
         </Text>
       </View>
 
