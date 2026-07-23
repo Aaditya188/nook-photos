@@ -2,7 +2,7 @@
  * App shell: providers, router, topbar/sidebar/toolbar chrome, boot loader,
  * search overlay, lightbox, and the add-to-album flow.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BrowserRouter,
   Navigate,
@@ -51,6 +51,9 @@ import {
 import { Onboarding } from './views/Onboarding';
 import { SharedAlbum } from './views/SharedAlbum';
 import { BackupHealthView } from './views/BackupHealth';
+
+// Leaflet is heavy — the map route loads on demand.
+const MapView = lazy(() => import('./views/MapView').then((m) => ({ default: m.MapView })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -175,14 +178,15 @@ function Shell() {
       }
     }
     const groups: NavGroup[] = [{ items: primary }];
-    if (aiEnabled) {
-      groups.push({
-        label: 'People & Places',
-        items: [
-          { to: '/people', title: 'People', icon: 'people', count: peopleQ.data ? peopleQ.data.length : null },
-          { to: '/places', title: 'Places', icon: 'places', count: placesQ.data ? placesQ.data.length : null },
-        ],
-      });
+    const hasGps = visible.some((p) => p.latitude != null && p.longitude != null);
+    if (aiEnabled || hasGps) {
+      const items: NavGroup['items'] = [];
+      if (aiEnabled) {
+        items.push({ to: '/people', title: 'People', icon: 'people', count: peopleQ.data ? peopleQ.data.length : null });
+        items.push({ to: '/places', title: 'Places', icon: 'places', count: placesQ.data ? placesQ.data.length : null });
+      }
+      if (hasGps) items.push({ to: '/map', title: 'Map', icon: 'map', count: null });
+      groups.push({ label: 'People & Places', items });
     }
     groups.push({
       label: 'Albums',
@@ -237,6 +241,14 @@ function Shell() {
               <Route path="/place/:label" element={<PlaceView />} />
               <Route path="/albums" element={<AlbumsView />} />
               <Route path="/album/:id" element={<AlbumView />} />
+              <Route
+                path="/map"
+                element={
+                  <Suspense fallback={<div className="bh-note" style={{ padding: 20 }}>Loading map…</div>}>
+                    <MapView />
+                  </Suspense>
+                }
+              />
               <Route path="/backup" element={<BackupHealthView />} />
               <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />

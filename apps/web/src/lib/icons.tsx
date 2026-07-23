@@ -20,6 +20,7 @@ export const ICON: Record<string, string> = {
   trash: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M9.5 6.5v-1a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v1M18.5 6.5l-.9 12.1a2 2 0 0 1-2 1.9H8.4a2 2 0 0 1-2-1.9L5.5 6.5M10 10.5v6M14 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   account: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c.8-3.7 3.7-5.7 7.5-5.7s6.7 2 7.5 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   cloud: '<svg viewBox="0 0 24 24" fill="none"><path d="M7 18.5a4.5 4.5 0 0 1-.4-9A5.5 5.5 0 0 1 17.3 9a4 4 0 0 1-.3 8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 13.5l2-2 2 2M11.5 12v4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="none"><path d="M9 4.5L4 6.2v13.3l5-1.7 6 1.7 5-1.7V4.5l-5 1.7-6-1.7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4.5v13.3M15 6.2v13.3" stroke="currentColor" stroke-width="1.6"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.6-3 2.9-4.6 5.5-4.6S13.9 16 14.5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5.2A3 3 0 0 1 16 11M17.5 14.6c2 .5 3.4 2 3.9 4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
 };
 
