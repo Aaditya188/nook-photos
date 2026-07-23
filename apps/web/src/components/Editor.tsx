@@ -310,20 +310,37 @@ export function Editor({ photo: p, onClose }: { photo: PhotoRecord; onClose: () 
   const stageFilter = comparing || showAccurate || tab === 'crop' ? undefined : cssApprox(adjust);
   const stageTransform = showAccurate ? undefined : transformCss;
 
-  const slider = (label: string, key: keyof Adjust, min: number, max: number) => (
-    <label key={key} className="ed-slider">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={adjust[key]}
-        onChange={(e) => setAdjust({ ...adjust, [key]: Number(e.target.value) })}
-        onDoubleClick={() => setAdjust({ ...adjust, [key]: NEUTRAL[key] })}
-      />
-      <em>{key === 'brightness' || key === 'contrast' || key === 'saturation' ? adjust[key] + '%' : adjust[key]}</em>
-    </label>
-  );
+  const slider = (label: string, key: keyof Adjust, min: number, max: number) => {
+    const val = adjust[key];
+    const isPct = key === 'brightness' || key === 'contrast' || key === 'saturation';
+    // Bipolar sliders fill from their neutral centre; others from the left.
+    const bipolar = min < 0;
+    const frac = (val - min) / (max - min);
+    const zeroFrac = (NEUTRAL[key] - min) / (max - min);
+    const a = bipolar ? Math.min(frac, zeroFrac) : 0;
+    const b = bipolar ? Math.max(frac, zeroFrac) : frac;
+    const track = 'var(--ed-track)';
+    const fill = 'var(--green)';
+    const bg = `linear-gradient(90deg, ${track} 0 ${a * 100}%, ${fill} ${a * 100}% ${b * 100}%, ${track} ${b * 100}% 100%)`;
+    const changed = val !== NEUTRAL[key];
+    return (
+      <div key={key} className="ed-slider">
+        <div className="ed-slider-top">
+          <span>{label}</span>
+          <em className={changed ? 'on' : undefined}>{isPct ? val + '%' : (val > 0 && bipolar ? '+' : '') + val}</em>
+        </div>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={val}
+          style={{ background: bg }}
+          onChange={(e) => setAdjust({ ...adjust, [key]: Number(e.target.value) })}
+          onDoubleClick={() => setAdjust({ ...adjust, [key]: NEUTRAL[key] })}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="editor" role="dialog" aria-modal="true" aria-label="Edit photo">
@@ -365,6 +382,7 @@ export function Editor({ photo: p, onClose }: { photo: PhotoRecord; onClose: () 
         </div>
       </div>
 
+      <div className="ed-body">
       <div className="ed-stage">
         <div className="ed-canvas" style={{ transform: stageTransform }}>
           {stageSrc ? (
@@ -487,6 +505,7 @@ export function Editor({ photo: p, onClose }: { photo: PhotoRecord; onClose: () 
             })}
           </div>
         ) : null}
+      </div>
       </div>
     </div>
   );
