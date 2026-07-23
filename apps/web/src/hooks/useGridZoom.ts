@@ -49,7 +49,7 @@ export function useGridZoomGestures(contentRef: React.RefObject<HTMLElement | nu
     if (!content) return;
 
     let wheelAccum = 0;
-    const hasGrid = () => !!content.querySelector('.day-grid');
+    const hasGrid = () => !!content.querySelector('.jrow, .day-grid');
 
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return; // trackpad pinch reports ctrlKey

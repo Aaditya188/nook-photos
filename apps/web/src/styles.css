@@ -1654,7 +1654,8 @@ button:focus-visible, .tile:focus-visible {
 /* ------------------------------------------------------ multi-select mode */
 
 .tile.selectable:hover img.loaded { transform: none; }
-.tile.selected { background: var(--sel-bg); }
+/* Selected: the photo shrinks with a checkmark, on nothing — no backing panel. */
+.tile.selected { background: transparent; }
 .tile.selected img.loaded { transform: scale(0.86); border-radius: 5px; }
 .tile.selectable.selected:hover img.loaded { transform: scale(0.86); }
 
@@ -1835,7 +1836,13 @@ html[data-theme='light'] .status-pill { border-color: rgba(0, 0, 0, 0.08); }
   transform: translateY(0);
 }
 
+.lock-wall-btn span {
+  display: inline-flex;
+  align-items: center;
+}
+
 .lock-wall-btn svg {
+  display: block;
   width: 17px;
   height: 17px;
 }
@@ -1844,4 +1851,201 @@ html[data-theme='light'] .status-pill { border-color: rgba(0, 0, 0, 0.08); }
   margin-top: 14px;
   font-size: 12.5px;
   color: var(--text-45);
+}
+
+/* --------------------------------------------- justified grid (GP style) */
+/* Rows of natural-aspect photos packed to a target height. */
+
+.jrow {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.jrow .tile {
+  flex: none;
+  aspect-ratio: auto;
+  border-radius: 6px;
+}
+
+.month-header {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin: 0;
+  padding: 34px 2px 4px;
+}
+
+/* Under a month header the day line reads as a sub-label (GP style). */
+.day-group .day-header,
+h3.day-header {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-60);
+  letter-spacing: 0;
+  margin: 0;
+  padding: 16px 2px 8px;
+}
+
+/* ------------------------------------------- immersive viewer (GP style) */
+
+.lb-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.lb-topbar > *,
+.lb-top-actions > * {
+  pointer-events: auto;
+}
+
+.lb-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-top-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.lb-top-btn svg {
+  width: 21px;
+  height: 21px;
+  display: block;
+}
+
+.lb-top-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.lb-top-btn.active { color: #fff; }
+.lb-top-btn:disabled { opacity: 0.4; cursor: default; }
+.lb-top-btn.dark { color: var(--text-72); }
+.lb-top-btn.dark:hover { background: var(--hover); }
+
+.lb-menu-anchor { position: relative; display: inline-flex; }
+
+.lb-menu {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  min-width: 230px;
+  background: #232326;
+  border: 0.5px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 6px 0;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+.lb-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  padding: 11px 18px;
+  cursor: pointer;
+}
+
+.lb-menu-item:hover { background: rgba(255, 255, 255, 0.08); }
+.lb-menu-item.danger { color: var(--pink); }
+
+/* Info drawer — GP-style details list. */
+
+.lb-info {
+  width: 356px;
+}
+
+.lb-info-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  margin: -6px 0 14px -8px;
+}
+
+.lb-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 11px 0;
+}
+
+.lb-detail-ico {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--text-55);
+  margin-top: 1px;
+}
+
+.lb-detail-ico svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.lb-detail-txt { min-width: 0; }
+
+.lb-detail-title {
+  font-size: 14.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.lb-detail-sub {
+  font-size: 12.5px;
+  color: var(--text-55);
+  margin-top: 2px;
+  white-space: pre-line;
+}
+
+.lb-map-wrap {
+  display: block;
+  margin-top: 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 210px;
+  border: 0.5px solid var(--hairline);
+}
+
+.lb-map {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+  filter: saturate(0.85);
+}
+
+@media (max-width: 900px) {
+  .lb-info {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(84vw, 356px);
+    z-index: 4;
+    box-shadow: -18px 0 44px rgba(0, 0, 0, 0.45);
+  }
 }

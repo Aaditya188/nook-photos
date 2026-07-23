@@ -1,12 +1,16 @@
 /**
- * Chunked virtual grid — the React port of the vanilla virtual scroller.
+ * Justified chunked virtual grid — Google-Photos-style rows + virtual scrolling.
  *
- * The list splits into chunks of whole segments (~CHUNK_TARGET photos each —
- * real days in grouped views, row-aligned runs in flat ones). Every chunk
- * renders a shell <div>: active chunks hold real tiles, the rest are
- * fixed-height spacers (estimated, corrected to measured on release), so the
- * scrollbar spans the whole library immediately, scrollbar-drag anywhere
- * works, and the live DOM stays a few hundred tiles at any depth.
+ * Layout: photos keep their real aspect ratio and are packed into rows of a
+ * target height (the zoom level); each row scales to exactly fill the
+ * container width. Grouped views get month headers + day headers.
+ *
+ * Virtualization: the list splits into chunks of whole segments (~CHUNK_TARGET
+ * photos — whole days when grouped). Every chunk renders a shell <div>; active
+ * chunks hold real tiles, the rest are fixed-height spacers. Because row
+ * heights are computed (not measured), spacer heights are exact up to header
+ * chrome, which is measured once — so the scrollbar spans the whole library
+ * from first paint and scrollbar-drag anywhere works.
  */
 import {
   memo,
@@ -25,38 +29,128 @@ import { GRID_ZOOM_LEVELS, useGridZoomIndex } from '../hooks/useGridZoom';
 
 const CHUNK_TARGET = 120;
 const CHUNK_KEEP_PX = 2600;
-const GRID_GAP = 2; // must match .day-grid { gap }
+const GAP = 2;
+
+// Header chrome fallbacks; corrected by measurement after first render.
+const DEFAULT_DAY_H = 40;
+const DEFAULT_MONTH_H = 68;
+
+interface Row {
+  start: number; // index into list
+  count: number;
+  h: number; // computed row height (px)
+  widths: number[]; // computed tile widths (px)
+}
 
 interface Segment {
-  label: string | null;
+  label: string | null; // day label (null in flat mode)
+  monthLabel: string | null; // set on the first day segment of each month
   start: number;
   count: number;
+  rows: Row[];
+  pixels: number; // rows + inter-row gaps (no header chrome)
 }
+
 interface Chunk {
   segs: Segment[];
   start: number;
-  count: number;
 }
 
-function daySegments(list: PhotoRecord[]): Segment[] {
-  const segs: Segment[] = [];
-  let curKey: string | null = null;
-  for (let i = 0; i < list.length; i++) {
-    const key = dayKeyOf(list[i].createdAt);
-    if (curKey !== key) {
-      curKey = key;
-      segs.push({ label: dayLabelOf(list[i].createdAt), start: i, count: 0 });
+function aspect(p: PhotoRecord): number {
+  const w = Number(p.width) || 0;
+  const h = Number(p.height) || 0;
+  if (w > 0 && h > 0) return Math.min(3, Math.max(0.4, w / h));
+  return 1;
+}
+
+/** Pack one segment's photos into justified rows for the given width. */
+function packRows(list: PhotoRecord[], start: number, count: number, width: number, targetH: number): Row[] {
+  const rows: Row[] = [];
+  let i = start;
+  const end = start + count;
+  while (i < end) {
+    // Greedily take photos until the row (at target height) would overflow.
+    let sumAR = 0;
+    let n = 0;
+    while (i + n < end) {
+      const nextAR = sumAR + aspect(list[i + n]);
+      const rowW = nextAR * targetH + n * GAP;
+      n += 1;
+      sumAR = nextAR;
+      if (rowW >= width) break;
     }
-    segs[segs.length - 1].count += 1;
+    const usable = width - (n - 1) * GAP;
+    const filled = sumAR * targetH >= usable - 1;
+    // Full rows stretch/shrink to fill exactly; a trailing partial row keeps
+    // the target height and leaves the remainder empty (Google Photos style).
+    const h = filled ? usable / sumAR : targetH;
+    const widths: number[] = [];
+    let acc = 0;
+    for (let k = 0; k < n; k++) {
+      const w = Math.round(aspect(list[i + k]) * h);
+      widths.push(w);
+      acc += w;
+    }
+    // Absorb rounding drift into the last tile of a filled row.
+    if (filled && n > 0) widths[n - 1] += usable - acc;
+    rows.push({ start: i, count: n, h: Math.round(h), widths });
+    i += n;
   }
-  return segs;
+  return rows;
 }
 
-function flatSegments(list: PhotoRecord[], cols: number): Segment[] {
-  const per = Math.max(cols * Math.ceil(CHUNK_TARGET / cols), cols);
+function monthLabelOf(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
+}
+
+function buildSegments(
+  list: PhotoRecord[],
+  grouped: boolean,
+  width: number,
+  targetH: number,
+): Segment[] {
   const segs: Segment[] = [];
-  for (let i = 0; i < list.length; i += per) {
-    segs.push({ label: null, start: i, count: Math.min(per, list.length - i) });
+  if (grouped) {
+    let curKey: string | null = null;
+    let curMonth: string | null = null;
+    for (let i = 0; i < list.length; i++) {
+      const key = dayKeyOf(list[i].createdAt);
+      if (curKey !== key) {
+        curKey = key;
+        const d = new Date(list[i].createdAt);
+        const mKey = d.getFullYear() + '-' + d.getMonth();
+        segs.push({
+          label: dayLabelOf(list[i].createdAt),
+          monthLabel: mKey !== curMonth ? monthLabelOf(list[i].createdAt) : null,
+          start: i,
+          count: 0,
+          rows: [],
+          pixels: 0,
+        });
+        curMonth = mKey;
+      }
+      segs[segs.length - 1].count += 1;
+    }
+  } else {
+    for (let i = 0; i < list.length; i += CHUNK_TARGET) {
+      segs.push({
+        label: null,
+        monthLabel: null,
+        start: i,
+        count: Math.min(CHUNK_TARGET, list.length - i),
+        rows: [],
+        pixels: 0,
+      });
+    }
+  }
+  for (const s of segs) {
+    s.rows = packRows(list, s.start, s.count, width, targetH);
+    s.pixels = s.rows.reduce((h, r) => h + r.h + GAP, 0);
   }
   return segs;
 }
@@ -64,10 +158,11 @@ function flatSegments(list: PhotoRecord[], cols: number): Segment[] {
 function toChunks(segs: Segment[]): Chunk[] {
   const chunks: Chunk[] = [];
   for (let si = 0; si < segs.length; ) {
-    const c: Chunk = { segs: [], start: segs[si].start, count: 0 };
-    while (si < segs.length && c.count < CHUNK_TARGET) {
+    const c: Chunk = { segs: [], start: segs[si].start };
+    let n = 0;
+    while (si < segs.length && n < CHUNK_TARGET) {
       c.segs.push(segs[si]);
-      c.count += segs[si].count;
+      n += segs[si].count;
       si += 1;
     }
     chunks.push(c);
@@ -75,120 +170,95 @@ function toChunks(segs: Segment[]): Chunk[] {
   return chunks;
 }
 
-interface Metrics {
-  cols: number;
-  tileH: number;
-  chrome: number;
-}
-
-function predictCols(width: number): number {
-  const tileMin = GRID_ZOOM_LEVELS[gridZoomIndexSafe()];
-  return Math.max(1, Math.floor((width + GRID_GAP) / (tileMin + GRID_GAP)));
-}
-function gridZoomIndexSafe(): number {
-  const i = parseInt(localStorage.getItem('nookGridZoom') || '', 10);
-  return Number.isInteger(i) ? Math.max(0, Math.min(GRID_ZOOM_LEVELS.length - 1, i)) : 2;
-}
-
 export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chunkEls = useRef<(HTMLDivElement | null)[]>([]);
-  const heights = useRef<Map<number, number>>(new Map());
-  const metrics = useRef<Metrics | null>(null);
   const zoomIdx = useGridZoomIndex();
+  const targetH = GRID_ZOOM_LEVELS[zoomIdx];
 
-  // Flat mode needs the column count before segmenting; measured after mount.
-  const [cols, setCols] = useState(() =>
-    predictCols(typeof window !== 'undefined' ? Math.min(window.innerWidth - 300, 1600) : 1200),
-  );
+  // Container width drives the whole layout; measured, then kept fresh.
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = hostRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w > 0) setWidth((prev) => (Math.abs(prev - w) > 1 ? w : prev));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    let timer: ReturnType<typeof setTimeout>;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(measure, 120);
+    };
+    window.addEventListener('resize', onResize, { passive: true });
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', onResize);
+      clearTimeout(timer);
+    };
+  }, []);
 
   const chunks = useMemo(() => {
-    const segs = grouped ? daySegments(list) : flatSegments(list, cols);
-    return toChunks(segs);
-  }, [list, grouped, cols]);
+    if (width <= 0) return [] as Chunk[];
+    return toChunks(buildSegments(list, grouped, width, targetH));
+  }, [list, grouped, width, targetH]);
+
+  // Header chrome, measured from the first rendered chunk.
+  const chrome = useRef({ day: DEFAULT_DAY_H, month: DEFAULT_MONTH_H });
+  const measureChrome = useCallback(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const day = host.querySelector('.day-header') as HTMLElement | null;
+    const month = host.querySelector('.month-header') as HTMLElement | null;
+    if (day) chrome.current.day = day.offsetHeight;
+    if (month) chrome.current.month = month.offsetHeight;
+  }, []);
+
+  const chunkHeight = useCallback(
+    (c: Chunk) => {
+      let h = 0;
+      for (const s of c.segs) {
+        if (s.monthLabel) h += chrome.current.month;
+        if (s.label) h += chrome.current.day;
+        h += s.pixels;
+      }
+      return Math.round(h);
+    },
+    [],
+  );
 
   const [active, setActive] = useState<ReadonlySet<number>>(() => new Set([0]));
   const [, bump] = useState(0);
 
-  // Reset when the list identity/shape changes.
   useEffect(() => {
-    heights.current = new Map();
-    metrics.current = null;
     setActive(new Set([0]));
   }, [chunks]);
 
-  const measureMetrics = useCallback(() => {
-    for (let i = 0; i < chunks.length; i++) {
-      const el = chunkEls.current[i];
-      if (!el || !el.firstElementChild) continue;
-      const segEl = el.firstElementChild as HTMLElement;
-      const grid = (grouped ? segEl.querySelector('.day-grid') : segEl) as HTMLElement | null;
-      const tile = grid ? (grid.querySelector('.tile') as HTMLElement | null) : null;
-      if (!grid || !tile) continue;
-      const colCount = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
-      const tileH = tile.getBoundingClientRect().height;
-      const rows = Math.ceil(chunks[i].segs[0].count / colCount);
-      const gridH = rows * tileH + (rows - 1) * GRID_GAP;
-      const cs = getComputedStyle(segEl);
-      const chrome =
-        segEl.getBoundingClientRect().height -
-        gridH +
-        (parseFloat(cs.marginTop) || 0) +
-        (parseFloat(cs.marginBottom) || 0);
-      metrics.current = { cols: colCount, tileH, chrome: Math.max(0, chrome) };
-      return;
-    }
-  }, [chunks, grouped]);
-
-  const estimate = useCallback(
-    (c: Chunk) => {
-      const m = metrics.current || {
-        cols: 5,
-        tileH: 182,
-        chrome: grouped ? 46 : GRID_GAP,
-      };
-      let h = 0;
-      for (const s of c.segs) {
-        const rows = Math.ceil(s.count / m.cols);
-        h += m.chrome + rows * m.tileH + (rows - 1) * GRID_GAP;
-      }
-      return Math.round(h);
-    },
-    [grouped],
-  );
-
-  // Fill/release chunks around the viewport. Reads all geometry first.
+  // Fill/release chunks around the viewport (reads geometry first).
   const virtualize = useCallback(() => {
     const host = hostRef.current;
-    if (!host || !host.isConnected) return;
+    if (!host || !host.isConnected || chunks.length === 0) return;
     const min = -CHUNK_KEEP_PX;
     const max = window.innerHeight + CHUNK_KEEP_PX;
-    const rects = chunks.map((_, i) => chunkEls.current[i]?.getBoundingClientRect() ?? null);
     const next = new Set<number>();
     for (let i = 0; i < chunks.length; i++) {
-      const r = rects[i];
-      if (!r) continue;
+      const el = chunkEls.current[i];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
       if (r.bottom >= min && r.top <= max) next.add(i);
     }
-    if (next.size === 0 && chunks.length) next.add(0);
+    if (next.size === 0) next.add(0);
     setActive((prev) => {
       let same = prev.size === next.size;
       if (same) for (const i of next) if (!prev.has(i)) { same = false; break; }
-      if (same) return prev;
-      // Record measured heights of chunks being released.
-      for (const i of prev) {
-        if (!next.has(i)) {
-          const r = rects[i];
-          if (r && r.height > 0) heights.current.set(i, Math.round(r.height));
-        }
-      }
-      return next;
+      return same ? prev : next;
     });
-    if (!metrics.current) measureMetrics();
-  }, [chunks, measureMetrics]);
+  }, [chunks]);
 
-  // Throttled global scroll listener (timestamp throttle — rAF pauses in some
-  // embedded webviews).
+  // Timestamp-throttled scroll listener (rAF pauses in embedded webviews).
   useEffect(() => {
     let lastAt = 0;
     let pending = false;
@@ -212,44 +282,12 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
     return () => window.removeEventListener('scroll', onScroll);
   }, [virtualize]);
 
-  // First paint + zoom/resize relayout: measure real geometry, refresh
-  // estimates (state bump re-renders spacers), then recycle for the viewport.
+  // After (re)layout: measure header chrome, refresh spacers, recycle.
   useLayoutEffect(() => {
-    measureMetrics();
-    // Flat segments are row-aligned for a column count — remeasure it.
-    if (!grouped && metrics.current && metrics.current.cols !== cols) {
-      setCols(metrics.current.cols);
-      return;
-    }
+    measureChrome();
     bump((v) => v + 1);
     virtualize();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chunks, zoomIdx, grouped]);
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        metrics.current = null;
-        measureMetrics();
-        if (!grouped && metrics.current) {
-          const m = metrics.current as Metrics;
-          if (m.cols !== cols) {
-            setCols(m.cols);
-            return;
-          }
-        }
-        bump((v) => v + 1);
-        virtualize();
-      }, 150);
-    };
-    window.addEventListener('resize', onResize, { passive: true });
-    return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(timer);
-    };
-  }, [grouped, cols, measureMetrics, virtualize]);
+  }, [chunks, measureChrome, virtualize]);
 
   return (
     <div ref={hostRef}>
@@ -262,9 +300,9 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
             ref={(n) => {
               chunkEls.current[i] = n;
             }}
-            style={isActive ? undefined : { height: heights.current.get(i) ?? estimate(c) }}
+            style={isActive ? undefined : { height: chunkHeight(c) }}
           >
-            {isActive ? <ChunkContent chunk={c} list={list} grouped={grouped} /> : null}
+            {isActive ? <ChunkContent chunk={c} list={list} /> : null}
           </div>
         );
       })}
@@ -272,49 +310,37 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
   );
 }
 
-const ChunkContent = memo(function ChunkContent({
-  chunk,
-  list,
-  grouped,
-}: {
-  chunk: Chunk;
-  list: PhotoRecord[];
-  grouped: boolean;
-}) {
+const ChunkContent = memo(function ChunkContent({ chunk, list }: { chunk: Chunk; list: PhotoRecord[] }) {
   const { selectMode, selectedIds, toggleSelect, setSelectedMany, openLightbox } = useView();
   return (
     <>
       {chunk.segs.map((s) => {
-        const tiles = [];
-        for (let i = s.start; i < s.start + s.count; i++) {
-          const p = list[i];
-          tiles.push(
-            <Tile
-              key={p.id}
-              photo={p}
-              selectMode={selectMode}
-              selected={selectedIds.has(p.id)}
-              onOpen={openLightbox}
-              onToggleSelect={toggleSelect}
-            />,
-          );
-        }
-        if (!grouped) {
-          // Bare grid (chunk shell measures it directly); keep the 2px row
-          // rhythm across sibling grids / chunk boundaries.
-          return (
-            <div key={s.start} className="day-grid" style={{ marginBottom: GRID_GAP }}>
-              {tiles}
-            </div>
-          );
-        }
-        const grid = <div className="day-grid">{tiles}</div>;
+        const rows = s.rows.map((r) => (
+          <div key={r.start} className="jrow" style={{ height: r.h }}>
+            {Array.from({ length: r.count }, (_, k) => {
+              const p = list[r.start + k];
+              return (
+                <Tile
+                  key={p.id}
+                  photo={p}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(p.id)}
+                  onOpen={openLightbox}
+                  onToggleSelect={toggleSelect}
+                  style={{ width: r.widths[k], height: r.h }}
+                />
+              );
+            })}
+          </div>
+        ));
+        if (!s.label) return <div key={s.start}>{rows}</div>;
         const dayIds: string[] = [];
         for (let i = s.start; i < s.start + s.count; i++) dayIds.push(list[i].id);
         const allSelected = dayIds.length > 0 && dayIds.every((id) => selectedIds.has(id));
         return (
           <section key={s.start} className="day-group">
-            <h2 className="day-header">
+            {s.monthLabel ? <h2 className="month-header">{s.monthLabel}</h2> : null}
+            <h3 className="day-header">
               <span>{s.label}</span>
               {selectMode ? (
                 <button
@@ -325,8 +351,8 @@ const ChunkContent = memo(function ChunkContent({
                   {allSelected ? 'Deselect' : 'Select all'}
                 </button>
               ) : null}
-            </h2>
-            {grid}
+            </h3>
+            {rows}
           </section>
         );
       })}

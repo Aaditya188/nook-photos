@@ -271,7 +271,9 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
   };
 
   return (
-    <div className="toolbar">
+    // A real search form (role + name="q") so browser password managers
+    // classify this as a search box, not a login field to autofill.
+    <form className="toolbar" role="search" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
       <div className="searchbox">
         <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.9" />
@@ -280,6 +282,9 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
         <input
           id="searchInput"
           type="search"
+          name="q"
+          role="searchbox"
+          aria-label="Search your photos"
           placeholder="Search your photos, people, places…"
           autoComplete="off"
           spellCheck={false}
@@ -295,7 +300,7 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
           </button>
         ) : null}
       </div>
-    </div>
+    </form>
   );
 }
 

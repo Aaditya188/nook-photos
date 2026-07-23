@@ -71,6 +71,8 @@ export interface TileProps {
   selected: boolean;
   onOpen: (id: string) => void;
   onToggleSelect: (id: string) => void;
+  /** Explicit size from the justified-row layout. */
+  style?: React.CSSProperties;
 }
 
 export const Tile = memo(function Tile({
@@ -79,6 +81,7 @@ export const Tile = memo(function Tile({
   selected,
   onOpen,
   onToggleSelect,
+  style,
 }: TileProps) {
   const ref = useRef<HTMLButtonElement | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -103,6 +106,7 @@ export const Tile = memo(function Tile({
       className={cls}
       data-id={p.id}
       aria-label={p.filename}
+      style={style}
       onClick={() => (selectMode ? onToggleSelect(p.id) : onOpen(p.id))}
     >
       {src ? (

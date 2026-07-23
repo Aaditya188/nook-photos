@@ -537,49 +537,24 @@ export function SearchResults() {
   const list = searchResults || [];
   useRegisterList(list);
   const selectAction = useSelectAction(list.length > 0);
-  const [tick, setTick] = useState(0); // re-render tiles on zoom not needed here
-  void tick;
-  void setTick;
 
   return (
     <>
-      <ViewHead title="Search" actions={selectAction} />
+      <ViewHead
+        title="Search"
+        subtitle={list.length ? list.length + ' result' + (list.length === 1 ? '' : 's') : ''}
+        actions={selectAction}
+      />
       <div id="grid">
         {list.length === 0 ? (
           <div className="search-empty">
             {searching ? 'Searching…' : 'No results for “' + searchQuery + '”'}
           </div>
         ) : (
-          <section className="day-group">
-            <h2 className="day-header">
-              {list.length + ' result' + (list.length === 1 ? '' : 's')}
-            </h2>
-            <SearchGrid list={list} />
-          </section>
+          <PhotoGrid list={list} grouped={false} />
         )}
       </div>
       <SelectionBar list={list} context={{ kind: 'normal' }} />
     </>
   );
 }
-
-function SearchGrid({ list }: { list: PhotoRecord[] }) {
-  const { selectMode, selectedIds, toggleSelect, openLightbox } = useView();
-  return (
-    <div className="day-grid">
-      {list.map((p) => (
-        <SearchTile
-          key={p.id}
-          photo={p}
-          selectMode={selectMode}
-          selected={selectedIds.has(p.id)}
-          onOpen={openLightbox}
-          onToggleSelect={toggleSelect}
-        />
-      ))}
-    </div>
-  );
-}
-
-// Search results are capped (~150) — plain tiles, no virtualization needed.
-import { Tile as SearchTile } from '../components/Tile';
