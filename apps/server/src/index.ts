@@ -19,7 +19,8 @@ import { ORIGIN, PORT, ORIGINALS_DIR } from './config.js';
 import { authorizePhoto } from './db.js';
 import { getSizedThumb, getViewJpeg } from './thumbs.js';
 import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
-import { annotatePhotos, clearEdit, getEdit, sanitizeRecipe, setEdit } from './edits.js';
+import sharpLib from 'sharp';
+import { annotatePhotos, applyRecipe, clearEdit, getEdit, sanitizeRecipe, setEdit } from './edits.js';
 import { authorizeAlbum, albumById, photoById, userIdForToken } from './db.js';
 import {
   createShare,
@@ -173,6 +174,30 @@ app.delete<{ Params: { id: string } }>('/api/photos/:id/edit', async (req, reply
   if (!photo) return reply.code(404).send({ error: 'not found' });
   clearEdit(req.params.id);
   return reply.send({ edited: false });
+});
+
+/**
+ * Pixel-accurate edit preview: render ~1024px with the POSTed recipe, without
+ * persisting anything. The web editor swaps this in after slider changes (and
+ * the mobile editor will live off it entirely).
+ */
+app.post<{ Params: { id: string } }>('/api/photos/:id/edit/preview', async (req, reply) => {
+  const photo = authorizePhoto(bearer(req), req.params.id);
+  if (!photo) return reply.code(404).send({ error: 'not found' });
+  const recipe = sanitizeRecipe(req.body);
+  const src = await getSizedThumb(req.params.id, 1024, true);
+  if (!src) return reply.code(404).send({ error: 'no preview source' });
+  try {
+    let pipeline = sharpLib(src, { failOn: 'none' }).rotate();
+    if (recipe) pipeline = await applyRecipe(pipeline, recipe);
+    const buf = await pipeline.jpeg({ quality: 84, mozjpeg: true }).toBuffer();
+    return reply
+      .header('Content-Type', 'image/jpeg')
+      .header('Cache-Control', 'no-store')
+      .send(buf);
+  } catch {
+    return reply.code(500).send({ error: 'preview failed' });
+  }
 });
 
 /**

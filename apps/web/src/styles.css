@@ -3124,3 +3124,112 @@ h3.day-header {
 
 .trip-title { font-size: 18px; font-weight: 750; letter-spacing: -0.4px; }
 .trip-sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.78); margin-top: 2px; }
+
+/* --------------------------------------------------------------- editor v2 */
+
+.ed-groups {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0 10px;
+}
+
+.ed-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, 90vw);
+}
+
+.ed-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  padding-bottom: 2px;
+}
+
+.ed-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ed-auto svg { width: 15px; height: 15px; }
+
+.ed-crop-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ed-straighten { width: min(440px, 90vw); }
+
+.ed-refining {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  animation: edspin 0.8s linear infinite;
+}
+
+@keyframes edspin { to { transform: rotate(360deg); } }
+
+.ed-thirds {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.ed-thirds-v {
+  top: 0;
+  bottom: 0;
+  left: 33.33%;
+  width: 33.33%;
+  border-left: 1px solid rgba(255, 255, 255, 0.55);
+  border-right: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.ed-thirds-h {
+  left: 0;
+  right: 0;
+  top: 33.33%;
+  height: 33.33%;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.ed-filters { max-width: 92vw; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 6px; }
+
+.ed-preset {
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
+
+.ed-preset-thumb {
+  width: 86px;
+  height: 86px;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+  background-color: rgba(255, 255, 255, 0.06);
+  display: block;
+  transition: transform 0.14s ease;
+}
+
+.ed-preset:hover .ed-preset-thumb { transform: scale(1.05); }
+.ed-preset-name { font-size: 12px; color: rgba(255, 255, 255, 0.75); font-weight: 600; }
