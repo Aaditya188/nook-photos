@@ -66,10 +66,40 @@ if (HAS_WEB) {
   app.addHook('onSend', (req, reply, payload, done) => {
     if (req.url.startsWith('/assets/') || req.url.startsWith('/icons/')) {
       reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (String(reply.getHeader('content-type') ?? '').includes('text/html')) {
+      // The SPA shell names the hashed bundles, so it must never be cached hard —
+      // a stale index.html would keep pointing browsers (and the Cloudflare edge)
+      // at asset filenames that no longer exist after a rebuild.
+      reply.header('Cache-Control', 'no-cache');
     }
     done(null, payload);
   });
   app.log.info(`serving web app from ${WEB_DIST}`);
+}
+
+/**
+ * Map a request URL to a real file inside WEB_DIST, or null if there isn't one.
+ * Returns a path relative to WEB_DIST (what reply.sendFile expects).
+ */
+function staticRelPath(reqUrl: string): string | null {
+  if (!HAS_WEB) return null;
+  let pathname = reqUrl.split('?')[0] ?? '/';
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    return null; // malformed percent-encoding
+  }
+  if (pathname.includes('\0')) return null;
+  const rel = pathname.replace(/^\/+/, '');
+  if (!rel) return null;
+  // Traversal guard: the resolved file must stay inside WEB_DIST.
+  const abs = path.resolve(WEB_DIST, rel);
+  if (abs !== WEB_DIST && !abs.startsWith(WEB_DIST + path.sep)) return null;
+  try {
+    return fs.statSync(abs).isFile() ? rel : null;
+  } catch {
+    return null; // missing → caller falls back to index.html
+  }
 }
 
 function bearer(req: { headers: Record<string, unknown>; query?: unknown }): string | null {
@@ -493,6 +523,12 @@ app.setNotFoundHandler((req, reply) => {
     return reply.from(req.url);
   }
   if (HAS_WEB && req.method === 'GET') {
+    // @fastify/static (wildcard: false) snapshots the file list at startup, so a
+    // web rebuild mints hashed bundles it has no routes for. Resolve the request
+    // against the dist on disk first — otherwise a fresh /assets/*.js would be
+    // answered with index.html and the app would boot a stale (or broken) bundle.
+    const rel = staticRelPath(req.url);
+    if (rel) return reply.sendFile(rel);
     return reply.sendFile('index.html');
   }
   // No built web app: fall back to proxying (origin's own dashboard).
