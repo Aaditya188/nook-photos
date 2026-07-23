@@ -16,6 +16,12 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import type { PhotoRecord } from '@nook/core';
 
+export interface SearchFilters {
+  type?: 'photo' | 'video';
+  person?: string; // person NAME from a person: operator (resolved to id downstream)
+  year?: number;
+}
+
 interface ViewState {
   // selection
   selectMode: boolean;
@@ -28,7 +34,13 @@ interface ViewState {
   searchQuery: string;
   searchResults: PhotoRecord[] | null;
   searching: boolean;
-  setSearchState: (q: string, results: PhotoRecord[] | null, searching: boolean) => void;
+  searchFilters: SearchFilters;
+  setSearchState: (
+    q: string,
+    results: PhotoRecord[] | null,
+    searching: boolean,
+    filters?: SearchFilters,
+  ) => void;
   // current list + lightbox
   currentList: PhotoRecord[];
   setCurrentList: (list: PhotoRecord[]) => void;
@@ -48,6 +60,7 @@ export function ViewProvider({ children }: { children: ReactNode }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PhotoRecord[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
   const [currentList, setCurrentListState] = useState<PhotoRecord[]>([]);
 
   // The lightbox lives in the URL (?photo=<id>) — the single source of truth.
@@ -92,10 +105,11 @@ export function ViewProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setSearchState = useCallback(
-    (q: string, results: PhotoRecord[] | null, isSearching: boolean) => {
+    (q: string, results: PhotoRecord[] | null, isSearching: boolean, filters?: SearchFilters) => {
       setSearchQuery(q);
       setSearchResults(results);
       setSearching(isSearching);
+      setSearchFilters(filters ?? {});
     },
     [],
   );
@@ -161,6 +175,7 @@ export function ViewProvider({ children }: { children: ReactNode }) {
       searchQuery,
       searchResults,
       searching,
+      searchFilters,
       setSearchState,
       currentList,
       setCurrentList,
@@ -180,6 +195,7 @@ export function ViewProvider({ children }: { children: ReactNode }) {
       searchQuery,
       searchResults,
       searching,
+      searchFilters,
       setSearchState,
       currentList,
       setCurrentList,

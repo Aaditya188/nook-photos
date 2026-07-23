@@ -16,7 +16,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PhotoRecord } from '@nook/core';
 import { AuthProvider, useAuth } from './state/auth';
 import { ModalProvider, ToastProvider, useModals, useToast } from './state/ui';
-import { ViewProvider, useView } from './state/view';
+import { ViewProvider, useView, type SearchFilters } from './state/view';
 import {
   useActions,
   useAlbumsQ,
@@ -251,38 +251,85 @@ function Shell() {
 
 // ------------------------------------------------------------------- search
 
+/**
+ * Parse search operators out of the raw query: `type:video`, `person:Name`
+ * (or person:"Two Words"), `year:2024`. What remains is the semantic text.
+ */
+function parseQuery(raw: string): { text: string; filters: SearchFilters } {
+  const filters: SearchFilters = {};
+  let text = raw;
+  text = text.replace(/\btype:(photos?|videos?)\b/gi, (_m, t: string) => {
+    filters.type = t.toLowerCase().startsWith('v') ? 'video' : 'photo';
+    return ' ';
+  });
+  text = text.replace(/\byear:(\d{4})\b/gi, (_m, y: string) => {
+    filters.year = Number(y);
+    return ' ';
+  });
+  text = text.replace(/\bperson:"([^"]+)"|\bperson:(\S+)/gi, (_m, a: string, b: string) => {
+    filters.person = a || b;
+    return ' ';
+  });
+  return { text: text.replace(/\s+/g, ' ').trim(), filters };
+}
+
+const RECENTS_KEY = 'nookRecentSearches';
+function readRecents(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function saveRecent(q: string) {
+  const list = [q, ...readRecents().filter((x) => x !== q)].slice(0, 8);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(list));
+}
+
 function SearchBox({ photos }: { photos: PhotoRecord[] }) {
   const { client } = useAuth();
   const { searchQuery, setSearchState } = useView();
   const [value, setValue] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [recents, setRecents] = useState<string[]>(readRecents);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const photosRef = useRef(photos);
   photosRef.current = photos;
 
   const run = async (raw: string) => {
-    const q = raw.trim();
+    const trimmed = raw.trim();
     const mySeq = ++seq.current;
-    if (!q) {
+    if (!trimmed) {
       setSearchState('', null, false);
       return;
     }
-    setSearchState(q, [], true);
+    const { text, filters } = parseQuery(trimmed);
+    setSearchState(trimmed, [], true, filters);
     let results: PhotoRecord[] | null = null;
-    try {
-      results = (await client.search(q, 150)).photos;
-    } catch {
-      /* fall through to local filter */
+    if (text) {
+      try {
+        results = (await client.search(text, 150)).photos;
+      } catch {
+        /* fall through to local filter */
+      }
+      if (mySeq !== seq.current) return;
+      if (!results) {
+        const terms = text.toLowerCase().split(/\s+/).filter(Boolean);
+        results = photosRef.current.filter((p) => {
+          const hay = (p.filename + ' ' + dayLabelOf(p.createdAt)).toLowerCase();
+          return terms.every((t) => hay.includes(t));
+        });
+      }
+    } else {
+      // Operators only ("type:video year:2024") → filter the whole library.
+      results = photosRef.current;
     }
     if (mySeq !== seq.current) return;
-    if (!results) {
-      const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-      results = photosRef.current.filter((p) => {
-        const hay = (p.filename + ' ' + dayLabelOf(p.createdAt)).toLowerCase();
-        return terms.every((t) => hay.includes(t));
-      });
-    }
-    setSearchState(q, results, false);
+    saveRecent(trimmed);
+    setRecents(readRecents());
+    setSearchState(trimmed, results, false, filters);
   };
 
   const onChange = (v: string) => {
@@ -296,6 +343,8 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
     setValue('');
     setSearchState('', null, false);
   };
+
+  const showRecents = focused && !value.trim() && recents.length > 0;
 
   return (
     // A real search form (role + name="q") so browser password managers
@@ -316,6 +365,8 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
           autoComplete="off"
           spellCheck={false}
           value={value}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') clear();
@@ -325,6 +376,28 @@ function SearchBox({ photos }: { photos: PhotoRecord[] }) {
           <button type="button" className="search-clear" aria-label="Clear search" onClick={clear}>
             ×
           </button>
+        ) : null}
+        {showRecents ? (
+          <div className="search-recents">
+            {recents.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className="search-recent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setValue(r);
+                  run(r);
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <span>{r}</span>
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
     </form>

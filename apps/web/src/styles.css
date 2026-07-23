@@ -2788,3 +2788,71 @@ h3.day-header {
 
 .bh-snap-name { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bh-snap-meta { color: var(--text-55); flex: none; }
+
+/* ------------------------------------------------------------ search extras */
+
+.searchbox { position: relative; }
+
+.search-recents {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 35;
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+
+.search-recent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-72);
+  font-size: 13.5px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.search-recent:hover { background: var(--hover); }
+.search-recent svg { color: var(--text-45); flex: none; }
+.search-recent span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sf-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0 14px;
+}
+
+.sf-chip {
+  border: 0.5px solid var(--hairline);
+  background: var(--surface-3);
+  color: var(--text-72);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.sf-chip:hover { background: var(--hover); }
+.sf-chip.active { background: var(--green); border-color: transparent; color: var(--green-dark); }
+
+.sf-select {
+  background: var(--surface-3);
+  border: 0.5px solid var(--hairline);
+  color: var(--text-72);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+}

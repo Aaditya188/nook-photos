@@ -633,10 +633,59 @@ export function AlbumView() {
 // -------------------------------------------------------------------- search
 
 export function SearchResults() {
-  const { searchQuery, searchResults, searching } = useView();
-  const list = searchResults || [];
+  const { searchQuery, searchResults, searching, searchFilters } = useView();
+  const results = searchResults || [];
+  const peopleQ = usePeopleQ();
+  const people = peopleQ.data || [];
+
+  // Chip state, seeded from query operators (person: resolves by name).
+  const [type, setType] = useState<'photo' | 'video' | undefined>(undefined);
+  const [year, setYear] = useState<number | undefined>(undefined);
+  const [personId, setPersonId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setType(searchFilters.type);
+    setYear(searchFilters.year);
+    if (searchFilters.person) {
+      const needle = searchFilters.person.toLowerCase();
+      const hit = people.find((p) => (p.name || '').toLowerCase().includes(needle));
+      setPersonId(hit?.id);
+    } else {
+      setPersonId(undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchFilters, searchQuery]);
+
+  const personPhotosQ = usePersonPhotosQ(personId);
+  const personIds = useMemo(
+    () => (personId ? new Set((personPhotosQ.data || []).map((p) => p.id)) : null),
+    [personId, personPhotosQ.data],
+  );
+
+  const years = useMemo(() => {
+    const ys = new Set<number>();
+    for (const p of results) ys.add(new Date(p.createdAt).getFullYear());
+    return [...ys].sort((a, b) => b - a);
+  }, [results]);
+
+  const list = useMemo(
+    () =>
+      results.filter((p) => {
+        if (type && p.mediaType !== type) return false;
+        if (year && new Date(p.createdAt).getFullYear() !== year) return false;
+        if (personIds && !personIds.has(p.id)) return false;
+        return true;
+      }),
+    [results, type, year, personIds],
+  );
+
   useRegisterList(list);
   const selectAction = useSelectAction(list.length > 0);
+
+  const chip = (label: string, active: boolean, onClick: () => void) => (
+    <button key={label} type="button" className={'sf-chip' + (active ? ' active' : '')} onClick={onClick}>
+      {label}
+    </button>
+  );
 
   return (
     <>
@@ -646,9 +695,48 @@ export function SearchResults() {
         actions={selectAction}
       />
       <div id="grid">
+        <div className="sf-chips">
+          {chip('All', !type, () => setType(undefined))}
+          {chip('Photos', type === 'photo', () => setType(type === 'photo' ? undefined : 'photo'))}
+          {chip('Videos', type === 'video', () => setType(type === 'video' ? undefined : 'video'))}
+          {people.length > 0 ? (
+            <select
+              className="sf-select"
+              value={personId ?? ''}
+              onChange={(e) => setPersonId(e.target.value || undefined)}
+            >
+              <option value="">Anyone</option>
+              {people
+                .filter((p) => p.name)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          ) : null}
+          {years.length > 1 ? (
+            <select
+              className="sf-select"
+              value={year ?? ''}
+              onChange={(e) => setYear(e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">Any year</option>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
         {list.length === 0 ? (
           <div className="search-empty">
-            {searching ? 'Searching…' : 'No results for “' + searchQuery + '”'}
+            {searching
+              ? 'Searching…'
+              : results.length > 0
+                ? 'No results match these filters'
+                : 'No results for “' + searchQuery + '”'}
           </div>
         ) : (
           <PhotoGrid list={list} grouped={false} />
