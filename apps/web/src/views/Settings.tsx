@@ -357,7 +357,8 @@ function DevicesSection() {
   const reload = () => {
     client.sessions().then((j) => setSessions(j.sessions)).catch(() => setSessions([]));
   };
-  useEffect(reload, [client]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { reload(); }, [client]);
 
   return (
     <section className="set-section">
@@ -411,8 +412,11 @@ function UsersSection() {
   const toast = useToast();
   const [users, setUsers] = useState<User[] | null>(null);
 
-  const reload = () => client.users().then((j) => setUsers(j.users)).catch(() => setUsers([]));
-  useEffect(reload, [client]);
+  const reload = () => {
+    client.users().then((j) => setUsers(j.users)).catch(() => setUsers([]));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { reload(); }, [client]);
 
   const addUser = () =>
     modals.openElement((close) => (

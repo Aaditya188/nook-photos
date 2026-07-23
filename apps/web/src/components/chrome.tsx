@@ -10,6 +10,7 @@ import { fmtBytes, fmtCount } from '../lib/format';
 import { ICON, SVG_BACK, Svg } from '../lib/icons';
 import { useLazyBlob } from './Tile';
 import { ProfileMenu } from './ProfileMenu';
+import { useUpload } from './Upload';
 
 // ------------------------------------------------------------------- top bar
 
@@ -76,11 +77,48 @@ export function TopBar({
       </div>
 
       <div className="topbar-right">
+        <UploadButton />
         <div className="storage-summary">
           {st ? fmtBytes(st.usedBytes) + ' of ' + fmtBytes(st.totalBytes) : ''}
         </div>
       </div>
     </header>
+  );
+}
+
+function UploadButton() {
+  const { pickFiles, pickFolder } = useUpload();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  return (
+    <div className="up-btn-wrap" ref={ref}>
+      <button type="button" className="up-btn" onClick={() => setOpen((v) => !v)} title="Upload">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4.5 15v3A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5v-3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        </svg>
+        <span>Upload</span>
+      </button>
+      {open ? (
+        <div className="up-menu" role="menu">
+          <button type="button" className="up-menu-item" onClick={() => { setOpen(false); pickFiles(); }}>
+            Photos or videos…
+          </button>
+          <button type="button" className="up-menu-item" onClick={() => { setOpen(false); pickFolder(); }}>
+            A folder…
+          </button>
+          <div className="up-menu-hint">Or drag files anywhere · Takeout .zip supported</div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -32,6 +32,7 @@ import { dayLabelOf } from './lib/format';
 import { AuthScreen } from './components/AuthScreen';
 import { BootLoader, Sidebar, TopBar, type NavGroup } from './components/chrome';
 import { Lightbox } from './components/Lightbox';
+import { UploadProvider, useUpload } from './components/Upload';
 import {
   AlbumView,
   AlbumsView,
@@ -72,8 +73,10 @@ export default function App() {
                 from modals; the lightbox lives in the URL). */}
             <ModalProvider>
               <ViewProvider>
-                <HashRedirect />
-                <Root />
+                <UploadProvider>
+                  <HashRedirect />
+                  <Root />
+                </UploadProvider>
               </ViewProvider>
             </ModalProvider>
           </BrowserRouter>

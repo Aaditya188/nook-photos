@@ -3386,7 +3386,9 @@ h3.day-header {
   flex-direction: column;
   gap: 3px;
   position: sticky;
-  top: calc(var(--topbar-h, 57px) + var(--toolbar-h, 66px) + 60px);
+  /* Settings has no search toolbar, so don't reserve --toolbar-h for it. */
+  top: calc(var(--topbar-h, 57px) + 24px);
+  align-self: flex-start;
 }
 
 .settings-tab {
@@ -3681,3 +3683,100 @@ h3.day-header {
 /* Backup Health: give the pending grid room to breathe. */
 .bh-pending { margin-top: 30px; }
 .bh-pending-grid { margin-top: 14px; }
+
+/* ----------------------------------------------------------------- upload */
+
+.up-btn-wrap { position: relative; }
+
+.up-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: var(--green);
+  color: var(--green-dark);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 8px 15px;
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.up-btn:hover { filter: brightness(1.05); }
+.up-btn svg { width: 17px; height: 17px; }
+
+.up-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+
+.up-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.up-menu-item:hover { background: var(--hover); }
+.up-menu-hint { font-size: 11.5px; color: var(--text-45); padding: 8px 12px 4px; line-height: 1.4; }
+
+.up-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(6, 20, 12, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.up-overlay-card {
+  border: 2px dashed var(--green);
+  border-radius: 22px;
+  padding: 48px 60px;
+  text-align: center;
+  background: rgba(11, 11, 12, 0.7);
+}
+
+.up-overlay-ico { color: var(--green); }
+.up-overlay-ico svg { width: 46px; height: 46px; }
+.up-overlay-title { font-size: 22px; font-weight: 750; margin-top: 12px; }
+.up-overlay-sub { font-size: 13.5px; color: var(--text-60); margin-top: 4px; }
+
+.up-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 90;
+  width: 300px;
+  background: var(--card);
+  border: 0.5px solid var(--hairline);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+.up-panel-top { display: flex; align-items: center; justify-content: space-between; }
+.up-panel-title { font-size: 14px; font-weight: 700; }
+.up-panel-count { font-size: 12.5px; color: var(--text-55); font-variant-numeric: tabular-nums; }
+
+.up-bar { height: 6px; border-radius: 4px; background: rgba(127,127,135,0.2); overflow: hidden; margin: 10px 0 8px; }
+.up-bar-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width 0.2s ease; }
+.up-panel-sub { font-size: 12px; color: var(--text-55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
