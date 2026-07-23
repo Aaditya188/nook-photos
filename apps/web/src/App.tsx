@@ -10,6 +10,7 @@ import {
   Routes,
   useLocation,
   useNavigate,
+  useSearchParams,
 } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PhotoRecord } from '@nook/core';
@@ -60,12 +61,13 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <ModalProvider>
-            <ViewProvider>
-              <BrowserRouter>
+            <BrowserRouter>
+              {/* ViewProvider derives the lightbox from the URL → inside the router. */}
+              <ViewProvider>
                 <HashRedirect />
                 <Root />
-              </BrowserRouter>
-            </ViewProvider>
+              </ViewProvider>
+            </BrowserRouter>
           </ModalProvider>
         </ToastProvider>
       </QueryClientProvider>

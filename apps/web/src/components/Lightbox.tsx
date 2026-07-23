@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PhotoRecord } from '@nook/core';
 import { useAuth } from '../state/auth';
-import { useActions } from '../state/data';
+import { useActions, useLibraryQ } from '../state/data';
 import { useModals } from '../state/ui';
 import { useView } from '../state/view';
 import { getBlobUrl } from '../lib/blobCache';
@@ -33,8 +33,21 @@ export function Lightbox({
 }) {
   const { lightboxId, closeLightbox, stepLightbox, stepOffPhoto, currentList } = useView();
   const modals = useModals();
+  const libQ = useLibraryQ();
 
-  const p = lightboxId ? currentList.find((x) => x.id === lightboxId) || null : null;
+  // Resolve from the on-screen list first, falling back to the full library —
+  // a reload restores ?photo= before the view's own list has finished loading.
+  const p = lightboxId
+    ? currentList.find((x) => x.id === lightboxId) ||
+      (libQ.data || []).find((x) => x.id === lightboxId) ||
+      null
+    : null;
+
+  // Lock page scroll only while a photo is actually displayed.
+  useEffect(() => {
+    document.body.classList.toggle('no-scroll', !!p);
+    return () => document.body.classList.remove('no-scroll');
+  }, [p]);
 
   // Keyboard nav (modal-open state swallows keys via the modal's own handler).
   useEffect(() => {
@@ -49,10 +62,12 @@ export function Lightbox({
     return () => document.removeEventListener('keydown', onKey);
   }, [lightboxId, modals.isOpen, closeLightbox, stepLightbox]);
 
-  // Close if the photo left the list entirely (e.g. emptied view).
+  // Close only once we KNOW the photo is gone: the library has loaded, the
+  // view's list has content, and neither contains it. (On reload the queries
+  // are still in flight — don't slam the viewer shut before data arrives.)
   useEffect(() => {
-    if (lightboxId && !p) closeLightbox();
-  }, [lightboxId, p, closeLightbox]);
+    if (lightboxId && !p && libQ.isSuccess && currentList.length > 0) closeLightbox();
+  }, [lightboxId, p, libQ.isSuccess, currentList.length, closeLightbox]);
 
   if (!p) return null;
   return (
