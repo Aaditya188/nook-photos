@@ -17,6 +17,7 @@ import { useModals } from '../state/ui';
 import { useView } from '../state/view';
 import { getBlobUrl } from '../lib/blobCache';
 import { Editor } from './Editor';
+import { VideoPlayer } from './VideoPlayer';
 import { deletedDaysLeft, fmtDuration, fmtExposure, fmtSizeMB } from '../lib/format';
 import {
   ICON,
@@ -267,34 +268,31 @@ function VideoStage({
 
   return (
     <div className="lb-video-wrap">
-      <video
-        ref={videoRef}
-        className="lb-media"
-        controls
-        playsInline
-        preload="metadata"
-        autoPlay
+      <VideoPlayer
+        videoRef={videoRef}
         poster={mediaUrl(p.thumbUrl)}
         src={mediaUrl(p.originalUrl)}
         onCanPlay={() => setLoading(false)}
-        onPlaying={() => setLoading(false)}
         onWaiting={() => setLoading(true)}
-        onError={async () => {
-          if (fellBack.current) {
-            setFailed(true);
+        onError={() => {
+          void (async () => {
+            // Range streaming failed (e.g. plain origin) → authed blob once.
+            if (fellBack.current) {
+              setFailed(true);
+              setLoading(true);
+              return;
+            }
+            fellBack.current = true;
             setLoading(true);
-            return;
-          }
-          fellBack.current = true;
-          setLoading(true);
-          const u = await getBlobUrl('orig:' + p.id, p.originalUrl, { priority: true });
-          const v = videoRef.current;
-          if (u && v) {
-            v.src = u;
-            v.load();
-          } else {
-            setFailed(true);
-          }
+            const u = await getBlobUrl('orig:' + p.id, p.originalUrl, { priority: true });
+            const v = videoRef.current;
+            if (u && v) {
+              v.src = u;
+              v.load();
+            } else {
+              setFailed(true);
+            }
+          })();
         }}
       />
       <div className={'lb-video-loading' + (loading ? '' : ' hidden')}>

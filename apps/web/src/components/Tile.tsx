@@ -41,7 +41,9 @@ export function useLazyBlob(
     if (!host || !url) return;
     let alive = true;
     const load = () => {
-      getBlobUrl(key, url).then((u) => {
+      // `wanted` lets the fetch queue skip this job entirely if the tile has
+      // been recycled away before its turn came (fast flings stay fast).
+      getBlobUrl(key, url, { wanted: () => alive }).then((u) => {
         if (!alive) return;
         if (u) setSrc(u);
         else setFailed(true);

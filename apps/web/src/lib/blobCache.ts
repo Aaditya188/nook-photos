@@ -12,7 +12,7 @@
  */
 
 const BLOB_CACHE_CAP = 800;
-const MAX_IMG_FETCHES = 8;
+const MAX_IMG_FETCHES = 10;
 
 type HeaderFn = () => Record<string, string>;
 type UnauthorizedFn = () => void;
@@ -28,17 +28,32 @@ export function configureBlobCache(headers: HeaderFn, onUnauthorized: Unauthoriz
 
 const blobCache = new Map<string, Promise<string | null>>();
 
-let imgFetchActive = 0;
-const imgFetchQueue: Array<{
+interface FetchJob {
   url: string;
   resolve: (r: Response) => void;
   reject: (e: unknown) => void;
-}> = [];
+  /** Return false once the requester is gone — the job is skipped, not fetched. */
+  wanted?: () => boolean;
+}
 
+let imgFetchActive = 0;
+const priorityQueue: FetchJob[] = []; // the open viewer — FIFO, always first
+const gridQueue: FetchJob[] = []; // grid thumbnails — LIFO: newest visible wins
+
+/**
+ * Grid jobs run newest-first and stale ones (tiles recycled away during a
+ * fast fling) are dropped without ever hitting the network — landing at the
+ * bottom of the library no longer waits behind hundreds of thumbs you
+ * scrolled past.
+ */
 function pumpImgQueue() {
-  while (imgFetchActive < MAX_IMG_FETCHES && imgFetchQueue.length) {
+  while (imgFetchActive < MAX_IMG_FETCHES && (priorityQueue.length || gridQueue.length)) {
+    const job = priorityQueue.shift() ?? gridQueue.pop()!;
+    if (job.wanted && !job.wanted()) {
+      job.reject(new Error('stale'));
+      continue;
+    }
     imgFetchActive += 1;
-    const job = imgFetchQueue.shift()!;
     fetch(job.url, { headers: headerFn() })
       .then(job.resolve, job.reject)
       .finally(() => {
@@ -48,12 +63,11 @@ function pumpImgQueue() {
   }
 }
 
-function queuedImgFetch(url: string, priority: boolean): Promise<Response> {
+function queuedImgFetch(url: string, priority: boolean, wanted?: () => boolean): Promise<Response> {
   return new Promise((resolve, reject) => {
-    const job = { url, resolve, reject };
-    // Priority jobs (the open lightbox) jump ahead of queued grid thumbnails.
-    if (priority) imgFetchQueue.unshift(job);
-    else imgFetchQueue.push(job);
+    const job: FetchJob = { url, resolve, reject, wanted };
+    if (priority) priorityQueue.push(job);
+    else gridQueue.push(job);
     pumpImgQueue();
   });
 }
@@ -61,7 +75,7 @@ function queuedImgFetch(url: string, priority: boolean): Promise<Response> {
 export function getBlobUrl(
   key: string,
   url: string,
-  opts: { priority?: boolean } = {},
+  opts: { priority?: boolean; wanted?: () => boolean } = {},
 ): Promise<string | null> {
   const hit = blobCache.get(key);
   if (hit) {
@@ -69,7 +83,7 @@ export function getBlobUrl(
     blobCache.set(key, hit); // refresh recency
     return hit;
   }
-  const entry: Promise<string | null> = queuedImgFetch(url, !!opts.priority)
+  const entry: Promise<string | null> = queuedImgFetch(url, !!opts.priority, opts.wanted)
     .then((res) => {
       if (res.status === 401) {
         unauthorizedFn();
