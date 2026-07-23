@@ -3537,10 +3537,12 @@ h3.day-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
+  width: 100%;
   font-size: 13px;
 }
 
-.ed-slider-top span { color: rgba(255, 255, 255, 0.82); font-weight: 500; }
+.ed-slider-top span { flex: 1; color: rgba(255, 255, 255, 0.82); font-weight: 500; }
 .ed-slider-top em {
   font-style: normal;
   color: rgba(255, 255, 255, 0.4);

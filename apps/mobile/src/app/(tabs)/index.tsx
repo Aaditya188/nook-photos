@@ -6,7 +6,7 @@ import { useLibrary, useDeletePhoto, type PhotoRecord } from '@nook/core';
 import { PhotoGrid } from '@/components/PhotoGrid';
 import { PeopleRail } from '@/components/PeopleRail';
 import { MemoriesRail } from '@/components/MemoriesRail';
-import { Text } from '@/components/ui';
+import { Text, BrandLoader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,8 +73,8 @@ export default function LibraryScreen() {
 
   if (library.isLoading) {
     return (
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={t.colors.primaryContainer} />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
+        <BrandLoader label="Loading your library…" />
       </SafeAreaView>
     );
   }

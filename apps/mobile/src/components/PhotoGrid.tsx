@@ -5,7 +5,7 @@
  * Select mode) toggles selection.
  */
 import { useCallback } from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Text as RNText } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ZoomGrid } from 'react-native-zoom-grid';
 import type { PhotoRecord } from '@nook/core';
@@ -47,11 +47,9 @@ export function PhotoGrid({
             <RemoteThumb photoId={item.id} displaySize={cell} style={{ width: '100%', height: '100%' }} />
             {item.mediaType === 'video' ? (
               <View style={styles.videoBadge}>
-                <MaterialIcons name="play-arrow" size={14} color="#fff" />
+                <MaterialIcons name="play-arrow" size={13} color="#fff" />
                 {item.duration != null ? (
-                  <View style={{ marginLeft: 2 }}>
-                    <MaterialIcons name="fiber-manual-record" size={0} color="transparent" />
-                  </View>
+                  <RNText style={styles.videoDuration}>{formatDuration(item.duration)}</RNText>
                 ) : null}
               </View>
             ) : null}
@@ -104,6 +102,7 @@ const styles = {
     paddingHorizontal: 3,
     paddingVertical: 1,
   },
+  videoDuration: { color: '#fff', fontSize: 10, fontWeight: '600' as const, marginLeft: 1, marginRight: 2 },
   favBadge: { position: 'absolute' as const, bottom: 4, right: 4, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 2 },
   selectDot: {
     position: 'absolute' as const,

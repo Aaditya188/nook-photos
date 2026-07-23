@@ -16,6 +16,7 @@ import {
   type ViewProps,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@/theme';
 
 type Variant = keyof ReturnType<typeof useTheme>['typeScale'];
@@ -171,4 +172,40 @@ export function Card({ style, ...rest }: ViewProps) {
 export function Divider() {
   const t = useTheme();
   return <View style={{ height: 1, backgroundColor: t.colors.outlineVariant, opacity: 0.5 }} />;
+}
+
+/**
+ * Branded loader: the nook mark on its green tile with a spinner beneath and an
+ * optional label — the mobile echo of the web boot loader. `full` fills and
+ * centres the screen.
+ */
+export function BrandLoader({ label, full = true }: { label?: string; full?: boolean }) {
+  const t = useTheme();
+  const inner = (
+    <View style={{ alignItems: 'center', gap: 16 }}>
+      <View
+        style={{
+          width: 62,
+          height: 62,
+          borderRadius: 18,
+          backgroundColor: t.colors.primaryContainer,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <MaterialCommunityIcons name="image-multiple" size={30} color={t.colors.onPrimary} />
+      </View>
+      <ActivityIndicator color={t.colors.primaryContainer} />
+      {label ? (
+        <Text variant="caption" color={t.colors.onSurfaceVariant}>
+          {label}
+        </Text>
+      ) : null}
+    </View>
+  );
+  if (!full) return inner;
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.colors.background }}>
+      {inner}
+    </View>
+  );
 }
