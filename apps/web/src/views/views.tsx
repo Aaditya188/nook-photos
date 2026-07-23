@@ -27,7 +27,15 @@ import {
   type HeadAction,
 } from '../components/chrome';
 import { fmtCount } from '../lib/format';
-import { SVG_LOCK, SVG_PLUS, Svg } from '../lib/icons';
+import { SVG_FINGERPRINT, SVG_LOCK, SVG_PLUS, Svg } from '../lib/icons';
+import {
+  bioDecline,
+  bioDeclined,
+  bioEnroll,
+  bioEnrolled,
+  bioVerify,
+  biometricsAvailable,
+} from '../lib/webauthn';
 
 // Media-type categories, mirroring iOS BrowseFilter.
 export const CATEGORIES: Record<
@@ -120,33 +128,82 @@ export function CategoryView() {
 // --------------------------------------------------------------- private gate
 
 /**
- * Hidden / Recently Deleted require the account password once per session.
- * Until unlocked, the view renders as a frosted wall with a centered
- * "Unlock Album" action — clicking it asks for the password.
+ * Hidden / Recently Deleted require unlocking once per session. Until then the
+ * view is a wall with a centered "Unlock Album" action. When a biometric
+ * credential is enrolled on this device (Windows Hello / Face ID / Touch ID /
+ * fingerprint via WebAuthn), unlocking tries that first and silently falls
+ * back to the account password; after a successful password unlock on a
+ * capable device, we offer to enable biometrics for next time.
  */
 function PrivateGate({ label, children }: { label: string; children: React.ReactNode }) {
   const { privateUnlocked, setPrivateUnlocked, user, client } = useAuth();
   const modals = useModals();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [bioSupported, setBioSupported] = useState(false);
+  const [bioReady, setBioReady] = useState(false);
 
-  const unlock = async () => {
-    if (busy) return;
+  useEffect(() => {
+    let alive = true;
+    biometricsAvailable().then((s) => {
+      if (!alive) return;
+      setBioSupported(s);
+      setBioReady(s && !!user && bioEnrolled(user.id));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  const unlockWithPassword = async (): Promise<boolean> => {
     const pw = await modals.prompt({
       title: 'Unlock ' + label,
       placeholder: 'Account password',
       confirm: 'Unlock',
       password: true,
     });
-    if (!pw) return; // cancelled — stay on the wall
+    if (!pw) return false; // cancelled — stay on the wall
     setBusy(true);
     try {
       await client.login({ username: user?.username || '', password: pw });
-      setPrivateUnlocked(true);
+      setBusy(false);
+      // First successful password unlock on a biometric-capable device:
+      // offer to enroll (once — declining is remembered).
+      if (bioSupported && user && !bioEnrolled(user.id) && !bioDeclined(user.id)) {
+        const enable = await modals.confirm({
+          title: 'Enable biometric unlock?',
+          body: 'Unlock private albums on this device with your face, fingerprint, or device PIN instead of your password.',
+          confirm: 'Enable',
+        });
+        if (enable) {
+          const ok = await bioEnroll(user.id, user.username, user.displayName || '');
+          toast(ok ? 'Biometric unlock enabled' : 'Could not enable biometrics');
+          setBioReady(ok);
+        } else {
+          bioDecline(user.id);
+        }
+      }
+      return true;
     } catch {
+      setBusy(false);
       toast('Incorrect password');
+      return false;
     }
-    setBusy(false);
+  };
+
+  const unlock = async () => {
+    if (busy) return;
+    // Biometric first when enrolled; cancel/failure falls back to password.
+    if (bioReady && user) {
+      setBusy(true);
+      const ok = await bioVerify(user.id);
+      setBusy(false);
+      if (ok) {
+        setPrivateUnlocked(true);
+        return;
+      }
+    }
+    if (await unlockWithPassword()) setPrivateUnlocked(true);
   };
 
   if (!privateUnlocked) {
@@ -163,9 +220,12 @@ function PrivateGate({ label, children }: { label: string; children: React.React
               This album is protected. Enter your account password to view its photos.
             </p>
             <button type="button" className="lock-wall-btn" disabled={busy} onClick={unlock}>
-              <Svg html={SVG_LOCK} />
+              <Svg html={bioReady ? SVG_FINGERPRINT : SVG_LOCK} />
               <span>{busy ? 'Unlocking…' : 'Unlock Album'}</span>
             </button>
+            {bioReady ? (
+              <div className="lock-wall-hint">Face / fingerprint unlock is on for this device</div>
+            ) : null}
           </div>
         </div>
       </>

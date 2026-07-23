@@ -61,6 +61,9 @@ export const SVG_REMOVE =
 export const SVG_ADD_TO_ALBUM_PLUS =
   '<svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5.5" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M19 9v9.5A2.5 2.5 0 0 1 16.5 21H8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9.5 11.5h4M11.5 9.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
+export const SVG_FINGERPRINT =
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 5.3A8 8 0 0 1 20 12c0 2.2-.3 4.3-.8 6.3M4.6 8.4A8 8 0 0 0 4 12c0 1.8-.2 3.6-.6 5.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12 8a4 4 0 0 1 4 4c0 2.5-.4 4.9-1.1 7.1M8 12a4 4 0 0 1 .6-2.1M8.4 15.5c-.2 1.2-.5 2.4-.9 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12 12c0 2.8-.5 5.5-1.4 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
 export const SVG_LOCK =
   '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V8a4 4 0 1 1 8 0v2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="15.2" r="1.4" fill="currentColor"/></svg>';
 

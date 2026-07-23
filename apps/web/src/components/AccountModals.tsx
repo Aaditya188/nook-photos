@@ -4,6 +4,7 @@ import type { User } from '@nook/core';
 import { useAuth } from '../state/auth';
 import { useModals, useToast } from '../state/ui';
 import { ICON, Svg } from '../lib/icons';
+import { bioEnrolled, bioForget } from '../lib/webauthn';
 
 export function useAccountModals() {
   const modals = useModals();
@@ -104,6 +105,19 @@ function AccountCard({ close }: { close: () => void }) {
         <Field label="New password" type="password" value={newPw} onChange={setNewPw} />
       </div>
       {error ? <div className="m-error">{error}</div> : null}
+      {account && bioEnrolled(account.id) ? (
+        <button
+          type="button"
+          className="m-link"
+          onClick={() => {
+            bioForget(account.id);
+            toast('Biometric unlock disabled on this device');
+            close();
+          }}
+        >
+          Disable biometric unlock on this device
+        </button>
+      ) : null}
       {account?.role === 'admin' ? (
         <button
           type="button"
