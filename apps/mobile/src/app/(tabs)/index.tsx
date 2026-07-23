@@ -92,6 +92,7 @@ export default function LibraryScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <PhotoGrid
+        grouped
         photos={photos}
         renderHeader={header}
         onPressPhoto={openPhoto}
