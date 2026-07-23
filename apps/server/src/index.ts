@@ -18,6 +18,7 @@ import fastifyStatic from '@fastify/static';
 import { ORIGIN, PORT, ORIGINALS_DIR } from './config.js';
 import { authorizePhoto } from './db.js';
 import { getSizedThumb, getViewJpeg } from './thumbs.js';
+import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
 
 // The web dashboard (apps/webui) — the improved vanilla-JS UI, served at /.
 const WEB_DIST = path.resolve(
@@ -64,6 +65,58 @@ function contentTypeFor(filename: string | undefined, mediaType: string | undefi
   const ext = filename ? path.extname(filename).toLowerCase() : '';
   return CONTENT_TYPES[ext] ?? (mediaType === 'video' ? 'video/mp4' : 'application/octet-stream');
 }
+
+/**
+ * Login with brute-force protection. The body is buffered here (the global
+ * passthrough parser hands us a stream) so the username can key the limiter,
+ * then the credentials are forwarded to the origin and the outcome recorded.
+ */
+app.post('/api/login', async (req, reply) => {
+  // Fastify's built-in JSON parser handles application/json (object); any
+  // other content-type reaches us as the raw stream via the '*' passthrough.
+  let raw = '';
+  const b: unknown = req.body;
+  if (b && typeof (b as AsyncIterable<Buffer>)[Symbol.asyncIterator] === 'function' && typeof b !== 'string') {
+    const chunks: Buffer[] = [];
+    for await (const c of b as AsyncIterable<Buffer | string>) {
+      chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+    }
+    raw = Buffer.concat(chunks).toString('utf8');
+  } else if (typeof b === 'string') {
+    raw = b;
+  } else if (b && typeof b === 'object') {
+    raw = JSON.stringify(b);
+  }
+  let username: string | null = null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.username === 'string') username = parsed.username;
+  } catch {
+    /* malformed body → origin will reject it */
+  }
+
+  const wait = loginBlockedFor(req.ip, username);
+  if (wait > 0) {
+    const mins = Math.ceil(wait / 60);
+    return reply
+      .code(429)
+      .header('Retry-After', String(wait))
+      .send({ error: `Too many attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` });
+  }
+
+  const res = await fetch(`${ORIGIN}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: raw,
+  });
+  const text = await res.text();
+  if (res.ok) recordLoginSuccess(username);
+  else if (res.status === 401 || res.status === 403) recordLoginFailure(req.ip, username);
+  reply
+    .code(res.status)
+    .header('Content-Type', res.headers.get('content-type') ?? 'application/json');
+  return reply.send(text);
+});
 
 /** Size-aware thumbnail: /api/photos/:id/thumb?w=NNN → sharp resize + cache. */
 app.get<{ Params: { id: string }; Querystring: { w?: string } }>(

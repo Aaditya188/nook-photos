@@ -17,7 +17,7 @@ import type {
 } from './types';
 
 export interface NookClientConfig {
-  /** e.g. https://nook.ghantacoder.in or http://192.168.0.20:8080 */
+  /** e.g. https://photos.example.com or http://192.168.1.20:8080 */
   baseUrl: string;
   /** Bearer token; omit for the public/auth endpoints. */
   token?: string | null;

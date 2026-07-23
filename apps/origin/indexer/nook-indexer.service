@@ -1,0 +1,19 @@
+[Unit]
+Description=Nook AI Indexer (semantic search / people / places)
+After=network.target
+
+[Service]
+Type=simple
+# EDIT these three paths to match where you cloned nook-photos:
+WorkingDirectory=/home/raspberrypi/nook-server/indexer
+EnvironmentFile=/home/raspberrypi/nook-server/indexer/indexer.env
+ExecStart=/home/raspberrypi/nook-server/indexer/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=5
+# Stay a good citizen: never starve the Node server or an active backup.
+Nice=10
+CPUWeight=40
+IOWeight=40
+
+[Install]
+WantedBy=multi-user.target

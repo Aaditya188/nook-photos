@@ -19,7 +19,7 @@ export default function ServerConfigScreen() {
   const setServerUrl = useAuth((s) => s.setServerUrl);
   const testConnection = useAuth((s) => s.testConnection);
 
-  const [url, setUrl] = useState(existing ?? 'https://nook.ghantacoder.in');
+  const [url, setUrl] = useState(existing ?? '');
   const [probe, setProbe] = useState<Probe>({ state: 'idle' });
 
   async function onTest() {

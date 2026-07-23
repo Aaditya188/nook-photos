@@ -1,0 +1,13 @@
+{
+  "name": "@nook/origin",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Nook Photos origin server — zero-dependency Node photo store, accounts, and API.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

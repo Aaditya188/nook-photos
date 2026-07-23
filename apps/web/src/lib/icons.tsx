@@ -17,16 +17,16 @@ export const ICON: Record<string, string> = {
   places: '<svg viewBox="0 0 24 24" fill="none"><path d="M12 21c4-4.3 6.5-7.6 6.5-11a6.5 6.5 0 1 0-13 0c0 3.4 2.5 6.7 6.5 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.7"/></svg>',
   albums: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>',
   hidden: '<svg viewBox="0 0 24 24" fill="none"><path d="M3 3l18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.5 6.3A9.6 9.6 0 0 1 12 6.2c5 0 8.5 5.8 8.5 5.8a15 15 0 0 1-2.4 3M6.1 7.9A15.5 15.5 0 0 0 3.5 12s3.5 5.8 8.5 5.8c1.2 0 2.3-.3 3.3-.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  trash: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0 1 11.5 4h1A1.5 1.5 0 0 1 14 5.5V7M7 7l.8 11a2 2 0 0 0 2 1.9h4.4a2 2 0 0 0 2-1.9L17 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M9.5 6.5v-1a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v1M18.5 6.5l-.9 12.1a2 2 0 0 1-2 1.9H8.4a2 2 0 0 1-2-1.9L5.5 6.5M10 10.5v6M14 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   account: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c.8-3.7 3.7-5.7 7.5-5.7s6.7 2 7.5 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.6-3 2.9-4.6 5.5-4.6S13.9 16 14.5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5.2A3 3 0 0 1 16 11M17.5 14.6c2 .5 3.4 2 3.9 4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
 };
 
 export const SVG_HEART_FILL =
-  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9C.4 8.6 2 4.5 5.8 4.5c2.1 0 3.4 1.3 4.2 2.4C10.8 5.8 12.1 4.5 14.2 4.5 18 4.5 19.6 8.6 18 12c-2.5 4.4-6 9-6 9z"/></svg>';
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.3 5.2a5.2 5.2 0 0 0-7.36 0L12 6.14l-.94-.94A5.2 5.2 0 1 0 3.7 12.56l1 1L12 20.9l7.3-7.34 1-1a5.2 5.2 0 0 0 0-7.36z"/></svg>';
 
 export const SVG_HEART_OUTLINE =
-  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20.5s-7-4.3-9.3-8.4C1.2 9.2 2.6 5.5 6 5.5c1.9 0 3.1 1.2 3.8 2.2C10.5 6.7 11.7 5.5 13.6 5.5c3.4 0 4.8 3.7 3.3 6.6-2.3 4.1-8.9 8.4-8.9 8.4z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.3 5.2a5.2 5.2 0 0 0-7.36 0L12 6.14l-.94-.94A5.2 5.2 0 1 0 3.7 12.56l1 1L12 20.9l7.3-7.34 1-1a5.2 5.2 0 0 0 0-7.36z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 export const SVG_CHECK =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -35,7 +35,7 @@ export const SVG_CLOCK =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.9"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 export const SVG_DOWNLOAD =
-  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 15v3.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10.5l5 5 5-5M12 15.5V3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 export const SVG_RESTORE =
   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v3.5h3.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';

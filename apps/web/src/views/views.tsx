@@ -17,6 +17,7 @@ import {
 import { useModals, useToast } from '../state/ui';
 import { useRegisterList, useView } from '../state/view';
 import { PhotoGrid } from '../components/PhotoGrid';
+import { MemoriesStrip } from '../components/Memories';
 import { SelectionBar, type BarContext } from '../components/SelectionBar';
 import {
   CoverTile,
@@ -68,6 +69,7 @@ function PhotoListView({
   extraActions = [],
   barContext = { kind: 'normal' },
   note,
+  lead,
 }: {
   title: string;
   subtitle?: string;
@@ -78,6 +80,7 @@ function PhotoListView({
   extraActions?: HeadAction[];
   barContext?: BarContext;
   note?: boolean;
+  lead?: React.ReactNode;
 }) {
   useRegisterList(list);
   const selectAction = useSelectAction(list.length > 0);
@@ -95,6 +98,7 @@ function PhotoListView({
         ) : (
           <>
             {note ? <DeletedNote /> : null}
+            {lead}
             <PhotoGrid list={list} grouped={grouped} />
           </>
         )}
@@ -109,7 +113,15 @@ function PhotoListView({
 export function LibraryView() {
   const lib = useLibraryQ();
   const list = useMemo(() => (lib.data || []).filter((p) => !p.hidden), [lib.data]);
-  return <PhotoListView title="Library" list={list} grouped emptyKind="library" />;
+  return (
+    <PhotoListView
+      title="Library"
+      list={list}
+      grouped
+      emptyKind="library"
+      lead={<MemoriesStrip photos={list} />}
+    />
+  );
 }
 
 export function CategoryView() {

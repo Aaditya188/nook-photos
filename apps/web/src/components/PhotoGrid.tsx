@@ -231,11 +231,39 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
   );
 
   const [active, setActive] = useState<ReadonlySet<number>>(() => new Set([0]));
-  const [, bump] = useState(0);
+  const [layoutV, bump] = useState(0);
+  const [scrollFrac, setScrollFrac] = useState(0);
 
   useEffect(() => {
     setActive(new Set([0]));
   }, [chunks]);
+
+  // Month markers at cumulative pixel offsets — powers the timeline scrubber.
+  const timeline = useMemo(() => {
+    if (!grouped || chunks.length === 0) return null;
+    const months: { label: string; y: number }[] = [];
+    let y = 0;
+    let last = '';
+    for (const c of chunks) {
+      for (const s of c.segs) {
+        const d = new Date(list[s.start].createdAt);
+        const key = d.getFullYear() + '-' + d.getMonth();
+        if (key !== last) {
+          last = key;
+          months.push({
+            label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            y,
+          });
+        }
+        if (s.monthLabel) y += chrome.current.month;
+        if (s.label) y += chrome.current.day;
+        y += s.pixels;
+      }
+    }
+    return { months, total: y };
+    // layoutV: recompute after header chrome has been measured.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chunks, list, grouped, layoutV]);
 
   // Fill/release chunks around the viewport (reads geometry first).
   const virtualize = useCallback(() => {
@@ -277,6 +305,8 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
       }
       lastAt = now;
       virtualize();
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollFrac(max > 0 ? window.scrollY / max : 0);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -306,6 +336,84 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
           </div>
         );
       })}
+      {timeline && list.length > 200 ? (
+        <TimelineScrubber timeline={timeline} hostRef={hostRef} frac={scrollFrac} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Timeline scrubber: a right-edge rail; drag it to fly through years, with a
+ * floating month/year bubble (Google-Photos style). Works hand in hand with
+ * the virtualizer — jumped-to regions fill in on arrival.
+ */
+function TimelineScrubber({
+  timeline,
+  hostRef,
+  frac,
+}: {
+  timeline: { months: { label: string; y: number }[]; total: number };
+  hostRef: React.RefObject<HTMLDivElement | null>;
+  frac: number;
+}) {
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const [drag, setDrag] = useState(false);
+  const [bubble, setBubble] = useState<{ label: string; f: number } | null>(null);
+
+  const scrubTo = useCallback(
+    (clientY: number) => {
+      const rail = railRef.current;
+      if (!rail) return;
+      const r = rail.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, f * max);
+      const hostTop = (hostRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+      const target = f * max + window.innerHeight * 0.35 - hostTop;
+      let label = timeline.months[0]?.label ?? '';
+      for (const m of timeline.months) {
+        if (m.y <= target) label = m.label;
+        else break;
+      }
+      setBubble({ label, f });
+    },
+    [hostRef, timeline],
+  );
+
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: PointerEvent) => scrubTo(e.clientY);
+    const onUp = () => {
+      setDrag(false);
+      setTimeout(() => setBubble(null), 350);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [drag, scrubTo]);
+
+  const pos = drag && bubble ? bubble.f : frac;
+
+  return (
+    <div
+      ref={railRef}
+      className={'tl-rail' + (drag ? ' drag' : '')}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        setDrag(true);
+        scrubTo(e.clientY);
+      }}
+    >
+      <div className="tl-thumb" style={{ top: 'calc(' + (pos * 100).toFixed(3) + '% - 14px)' }} />
+      {drag && bubble ? (
+        <div className="tl-bubble" style={{ top: (bubble.f * 100).toFixed(3) + '%' }}>
+          {bubble.label}
+        </div>
+      ) : null}
     </div>
   );
 }

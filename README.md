@@ -21,9 +21,8 @@ This is an npm-workspaces monorepo:
 | [`apps/web`](apps/web) | **The web dashboard** — React 19 + Vite + react-router + TanStack Query. Chunked **virtual scroller** (the DOM holds a few hundred tiles even in a 10k+ photo library, with a full-height scrollbar you can drag anywhere), authed blob thumbnail cache, progressive photo viewer with server-side HEIC decode, range-streamed video, multi-select with client-side ZIP download, password-locked Hidden / Recently Deleted albums behind a lock wall, dark / light / system theme, pinch or Ctrl-scroll grid density zoom. |
 | [`apps/webui`](apps/webui) | The original dependency-free vanilla-JS dashboard, kept fully working as the battle-tested fallback. Same feature set as `apps/web`. |
 | [`apps/server`](apps/server) | **Performance gateway** — Fastify + sharp. Size-bucketed thumbnails resized on the fly and disk-cached (`?w=128…1024`), HTTP-Range streaming for video/originals, server-side HEIC → JPEG for full-resolution viewing, transparent proxy to the origin API for everything else, and static hosting for the web dashboard. Media auth accepts `?token=` for `<img>`/`<video>` elements that can't send headers. |
+| [`apps/origin`](apps/origin) | **Origin server** — the photo store itself: a zero-dependency Node file server (accounts with scrypt passwords, bearer tokens, library/albums/hidden/deleted APIs, uploads) plus the optional Python **AI indexer** (semantic search, face clustering, places — GPU-accelerated when available). All storage is plain files + one `db.json`; your library is never locked into a database. |
 | [`design-reference`](design-reference) | The Stitch design screens (light + dark) the apps are built against. |
-
-The origin server (photo store, accounts, albums API) and the GPU AI indexer (semantic search, face clustering, places) live on the host machine alongside the gateway.
 
 ## Architecture
 

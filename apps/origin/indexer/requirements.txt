@@ -1,0 +1,12 @@
+# nook-indexer — Python deps (aarch64 wheels available for Raspberry Pi 5).
+# CLIP (semantic search)
+fastembed>=0.4
+# Face detection + embedding (SCRFD + ArcFace, buffalo_s pack)
+insightface>=0.7
+opencv-python-headless>=4.9
+# Offline reverse geocoding (GPS -> city/country)
+reverse_geocoder>=1.5
+# Shared runtime
+onnxruntime>=1.17
+numpy>=1.26
+pillow>=10.0
