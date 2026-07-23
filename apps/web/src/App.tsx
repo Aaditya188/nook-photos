@@ -49,6 +49,7 @@ import {
   SearchResults,
 } from './views/views';
 import { Onboarding } from './views/Onboarding';
+import { SharedAlbum } from './views/SharedAlbum';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,16 @@ function HashRedirect() {
 
 function Root() {
   const { token } = useAuth();
+  const location = useLocation();
+  // Public shared-album pages need no account.
+  if (location.pathname.startsWith('/s/')) {
+    return (
+      <Routes>
+        <Route path="/s/:sid" element={<SharedAlbum />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
   if (!token) return <AuthScreen />;
   return <Shell />;
 }

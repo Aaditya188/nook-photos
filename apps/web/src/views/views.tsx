@@ -18,6 +18,7 @@ import { useModals, useToast } from '../state/ui';
 import { useRegisterList, useView } from '../state/view';
 import { PhotoGrid } from '../components/PhotoGrid';
 import { MemoriesStrip } from '../components/Memories';
+import { ShareCard } from '../components/ShareModal';
 import { SelectionBar, type BarContext } from '../components/SelectionBar';
 import {
   CoverTile,
@@ -500,6 +501,11 @@ export function AlbumView() {
   if (!album) return <div id="grid" />;
 
   const extra: HeadAction[] = [
+    {
+      label: 'Share',
+      primary: true,
+      onClick: () => modals.openElement((c) => <ShareCard albumId={album.id} close={c} />),
+    },
     {
       label: 'Rename',
       onClick: async () => {

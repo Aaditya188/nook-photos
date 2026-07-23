@@ -20,6 +20,15 @@ import { authorizePhoto } from './db.js';
 import { getSizedThumb, getViewJpeg } from './thumbs.js';
 import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
 import { annotatePhotos, clearEdit, getEdit, sanitizeRecipe, setEdit } from './edits.js';
+import { authorizeAlbum, albumById, photoById, userIdForToken } from './db.js';
+import {
+  createShare,
+  getShare,
+  revokeShare,
+  shareForAlbum,
+  shareUnlocked,
+  unlockShare,
+} from './shares.js';
 
 // The web dashboard served at /: the built React app (apps/web/dist) by
 // default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
@@ -156,6 +165,155 @@ app.delete<{ Params: { id: string } }>('/api/photos/:id/edit', async (req, reply
   return reply.send({ edited: false });
 });
 
+/**
+ * Album share links: one live link per album — optionally expiring, optionally
+ * password-protected (unlock issues a session token so the password never
+ * rides on media URLs), optionally allowing original downloads. Public
+ * viewers need no account.
+ */
+app.get<{ Params: { id: string } }>('/api/albums/:id/share', async (req, reply) => {
+  const album = authorizeAlbum(bearer(req), req.params.id);
+  if (!album) return reply.code(404).send({ error: 'not found' });
+  const s = shareForAlbum(album.id);
+  if (!s) return reply.send({ shared: false });
+  return reply.send({
+    shared: true,
+    id: s.id,
+    url: '/s/' + s.id,
+    expiresAt: s.expiresAt,
+    hasPassword: !!s.passwordHash,
+    allowDownload: s.allowDownload,
+  });
+});
+
+app.post<{
+  Params: { id: string };
+  Body: { expiresDays?: number; password?: string; allowDownload?: boolean };
+}>('/api/albums/:id/share', async (req, reply) => {
+  const token = bearer(req);
+  const album = authorizeAlbum(token, req.params.id);
+  if (!album) return reply.code(404).send({ error: 'not found' });
+  const body = (req.body ?? {}) as { expiresDays?: number; password?: string; allowDownload?: boolean };
+  const s = createShare(album.id, userIdForToken(token)!, {
+    expiresDays: Number(body.expiresDays) || null,
+    password: typeof body.password === 'string' && body.password ? body.password : null,
+    allowDownload: !!body.allowDownload,
+  });
+  return reply.send({
+    shared: true,
+    id: s.id,
+    url: '/s/' + s.id,
+    expiresAt: s.expiresAt,
+    hasPassword: !!s.passwordHash,
+    allowDownload: s.allowDownload,
+  });
+});
+
+app.delete<{ Params: { id: string } }>('/api/albums/:id/share', async (req, reply) => {
+  const album = authorizeAlbum(bearer(req), req.params.id);
+  if (!album) return reply.code(404).send({ error: 'not found' });
+  revokeShare(album.id);
+  return reply.send({ shared: false });
+});
+
+/** Public: share metadata + photo list (or a locked stub). */
+app.get<{ Params: { sid: string }; Querystring: { st?: string } }>(
+  '/api/share/:sid',
+  async (req, reply) => {
+    const s = getShare(req.params.sid);
+    if (!s) return reply.code(404).send({ error: 'This link is invalid or has expired.' });
+    const album = albumById(s.albumId);
+    if (!album) return reply.code(404).send({ error: 'This album no longer exists.' });
+    if (!shareUnlocked(s, req.query.st)) {
+      return reply.send({ locked: true, name: album.name });
+    }
+    const photos = album.photoIds
+      .map((pid) => photoById(pid))
+      .filter((p): p is NonNullable<typeof p> => !!p && !p.deletedAt)
+      .map((p) => ({
+        id: p.id,
+        filename: p.filename,
+        createdAt: p.createdAt,
+        width: p.width,
+        height: p.height,
+        mediaType: p.mediaType,
+        duration: p.duration ?? null,
+      }));
+    return reply.send({
+      locked: false,
+      name: album.name,
+      count: photos.length,
+      allowDownload: s.allowDownload,
+      photos,
+    });
+  },
+);
+
+app.post<{ Params: { sid: string }; Body: { password?: string } }>(
+  '/api/share/:sid/unlock',
+  async (req, reply) => {
+    const body = (req.body ?? {}) as { password?: string };
+    const st = unlockShare(req.params.sid, String(body.password ?? ''));
+    if (!st) return reply.code(401).send({ error: 'Incorrect password' });
+    return reply.send({ st });
+  },
+);
+
+/** Resolve + gate a share-scoped photo request. */
+function sharePhoto(sid: string, photoId: string, st: string | undefined) {
+  const s = getShare(sid);
+  if (!s || !shareUnlocked(s, st)) return null;
+  const album = albumById(s.albumId);
+  if (!album || !album.photoIds.includes(photoId)) return null;
+  const photo = photoById(photoId);
+  if (!photo || photo.deletedAt) return null;
+  return { share: s, photo };
+}
+
+app.get<{ Params: { sid: string; photoId: string }; Querystring: { w?: string; st?: string } }>(
+  '/api/share/:sid/thumb/:photoId',
+  async (req, reply) => {
+    const hit = sharePhoto(req.params.sid, req.params.photoId, req.query.st);
+    if (!hit) return reply.code(404).send({ error: 'not found' });
+    const file = await getSizedThumb(hit.photo.id, Number(req.query.w) || 256);
+    if (!file) return reply.code(404).send({ error: 'not found' });
+    const buf = await fsp.readFile(file);
+    reply
+      .header('Content-Type', 'image/jpeg')
+      .header('Cache-Control', 'public, max-age=3600')
+      .send(buf);
+  },
+);
+
+app.get<{ Params: { sid: string; photoId: string }; Querystring: { w?: string; st?: string } }>(
+  '/api/share/:sid/view/:photoId',
+  async (req, reply) => {
+    const hit = sharePhoto(req.params.sid, req.params.photoId, req.query.st);
+    if (!hit) return reply.code(404).send({ error: 'not found' });
+    const file = await getViewJpeg(hit.photo.id, Number(req.query.w) || 2560, hit.photo.filename);
+    if (!file) return reply.code(404).send({ error: 'not found' });
+    const buf = await fsp.readFile(file);
+    reply
+      .header('Content-Type', 'image/jpeg')
+      .header('Cache-Control', 'public, max-age=3600')
+      .send(buf);
+  },
+);
+
+app.get<{ Params: { sid: string; photoId: string }; Querystring: { st?: string } }>(
+  '/api/share/:sid/original/:photoId',
+  async (req, reply) => {
+    const hit = sharePhoto(req.params.sid, req.params.photoId, req.query.st);
+    if (!hit) return reply.code(404).send({ error: 'not found' });
+    // Originals are gated by allowDownload — except video, whose playback
+    // needs the byte stream either way.
+    if (!hit.share.allowDownload && hit.photo.mediaType !== 'video') {
+      return reply.code(403).send({ error: 'downloads are disabled for this link' });
+    }
+    return streamStoredFile(req, reply, hit.photo, hit.photo.id, false);
+  },
+);
+
 /** Library proxy with editedAt annotation (clients use it to cache-bust). */
 app.get('/api/library', async (req, reply) => {
   const res = await fetch(`${ORIGIN}/api/library`, {
@@ -220,14 +378,24 @@ app.get<{ Params: { id: string }; Querystring: { w?: string } }>(
 async function serveOriginal(req: any, reply: any, headOnly: boolean) {
   const photo = authorizePhoto(bearer(req), req.params.id);
   if (!photo) return reply.code(404).send({ error: 'not found' });
+  return streamStoredFile(req, reply, photo, req.params.id, headOnly);
+}
 
-  const filePath = path.join(ORIGINALS_DIR, req.params.id);
+/** Range-capable file streaming for an ALREADY-authorized photo. */
+async function streamStoredFile(
+  req: any,
+  reply: any,
+  photo: { filename?: string; mediaType?: string },
+  id: string,
+  headOnly: boolean,
+) {
+  const filePath = path.join(ORIGINALS_DIR, id);
   let stat: fs.Stats;
   try {
     stat = await fsp.stat(filePath);
   } catch {
     // Not uploaded to this box yet → let the origin answer.
-    return reply.from(`/api/photos/${req.params.id}/original`);
+    return reply.from(`/api/photos/${id}/original`);
   }
 
   const type = contentTypeFor(photo.filename, photo.mediaType);

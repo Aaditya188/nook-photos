@@ -16,13 +16,31 @@ interface PhotoRec {
   filename?: string;
   mediaType?: 'photo' | 'video';
   deletedAt?: string | null;
+  createdAt?: string;
+  width?: number;
+  height?: number;
+  duration?: number | null;
+  uploadState?: string;
+}
+export interface AlbumRec {
+  id: string;
+  userId: string;
+  name: string;
+  photoIds: string[];
+  coverPhotoId?: string | null;
 }
 interface Db {
   tokens: Record<string, TokenRec>;
   photos: PhotoRec[];
+  albums: AlbumRec[];
 }
 
-let cache: { mtimeMs: number; db: Db; photoById: Map<string, PhotoRec> } | null = null;
+let cache: {
+  mtimeMs: number;
+  db: Db;
+  photoById: Map<string, PhotoRec>;
+  albumById: Map<string, AlbumRec>;
+} | null = null;
 
 function load(): typeof cache {
   let stat: fs.Stats;
@@ -37,8 +55,14 @@ function load(): typeof cache {
     const db: Db = {
       tokens: raw.tokens && typeof raw.tokens === 'object' ? raw.tokens : {},
       photos: Array.isArray(raw.photos) ? raw.photos : [],
+      albums: Array.isArray(raw.albums) ? raw.albums : [],
     };
-    cache = { mtimeMs: stat.mtimeMs, db, photoById: new Map(db.photos.map((p) => [p.id, p])) };
+    cache = {
+      mtimeMs: stat.mtimeMs,
+      db,
+      photoById: new Map(db.photos.map((p) => [p.id, p])),
+      albumById: new Map(db.albums.map((a) => [a.id, a])),
+    };
     return cache;
   } catch {
     return cache; // keep last good copy on a torn read
@@ -62,4 +86,17 @@ export function authorizePhoto(token: string | null, id: string): PhotoRec | nul
   const photo = photoById(id);
   if (!photo || photo.userId !== userId) return null;
   return photo;
+}
+
+export function albumById(id: string): AlbumRec | null {
+  return load()?.albumById.get(id) ?? null;
+}
+
+/** Returns the album if the token's user owns it. */
+export function authorizeAlbum(token: string | null, id: string): AlbumRec | null {
+  const userId = userIdForToken(token);
+  if (!userId) return null;
+  const album = albumById(id);
+  if (!album || album.userId !== userId) return null;
+  return album;
 }
