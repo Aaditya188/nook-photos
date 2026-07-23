@@ -50,6 +50,7 @@ import {
 } from './views/views';
 import { Onboarding } from './views/Onboarding';
 import { SharedAlbum } from './views/SharedAlbum';
+import { BackupHealthView } from './views/BackupHealth';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -190,6 +191,7 @@ function Shell() {
     groups.push({
       label: 'Library',
       items: [
+        { to: '/backup', title: 'Backup Health', icon: 'cloud', count: pending || null },
         { to: '/hidden', title: 'Hidden', icon: 'hidden', count: hiddenCount || null },
         { to: '/deleted', title: 'Recently Deleted', icon: 'trash', count: null },
       ],
@@ -235,6 +237,7 @@ function Shell() {
               <Route path="/place/:label" element={<PlaceView />} />
               <Route path="/albums" element={<AlbumsView />} />
               <Route path="/album/:id" element={<AlbumView />} />
+              <Route path="/backup" element={<BackupHealthView />} />
               <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

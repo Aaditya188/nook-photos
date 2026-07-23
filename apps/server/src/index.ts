@@ -29,6 +29,7 @@ import {
   shareUnlocked,
   unlockShare,
 } from './shares.js';
+import { listSnapshots, startSnapshotSchedule, takeSnapshot } from './snapshots.js';
 
 // The web dashboard served at /: the built React app (apps/web/dist) by
 // default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
@@ -314,6 +315,22 @@ app.get<{ Params: { sid: string; photoId: string }; Querystring: { st?: string }
   },
 );
 
+/** Metadata snapshots (Backup Health): list + take-now. Auth required. */
+app.get('/api/backup/snapshots', async (req, reply) => {
+  if (!userIdForToken(bearer(req))) return reply.code(401).send({ error: 'unauthorized' });
+  return reply.send({ snapshots: await listSnapshots() });
+});
+
+app.post('/api/backup/snapshot', async (req, reply) => {
+  if (!userIdForToken(bearer(req))) return reply.code(401).send({ error: 'unauthorized' });
+  try {
+    const snap = await takeSnapshot();
+    return reply.send({ ok: true, snapshot: snap });
+  } catch {
+    return reply.code(500).send({ error: 'could not write snapshot' });
+  }
+});
+
 /** Library proxy with editedAt annotation (clients use it to cache-bust). */
 app.get('/api/library', async (req, reply) => {
   const res = await fetch(`${ORIGIN}/api/library`, {
@@ -448,6 +465,8 @@ app.setNotFoundHandler((req, reply) => {
   if (!HAS_WEB) return reply.from(req.url);
   return reply.code(404).send({ error: 'not found' });
 });
+
+startSnapshotSchedule();
 
 app
   .listen({ port: PORT, host: '0.0.0.0' })
