@@ -1,11 +1,16 @@
 /**
- * Share-an-album modal: create/replace/revoke the album's public link with
- * optional expiry, password, and download permission.
+ * Share-an-album modal. Two ways to share:
+ *  - People: grant named accounts on this server View or Edit access (with an
+ *    optional expiry); Edit lets them add/remove photos.
+ *  - Guest link: a public URL (optional password, expiry, downloads) for anyone
+ *    without an account.
  */
 import { useEffect, useState } from 'react';
+import type { AlbumGrant } from '@nook/core';
 import { useAuth } from '../state/auth';
 import { useServerInfoQ } from '../state/data';
 import { useToast } from '../state/ui';
+import { Svg, ICON } from '../lib/icons';
 
 interface ShareState {
   shared: boolean;
@@ -77,6 +82,10 @@ export function ShareCard({ albumId, close }: { albumId: string; close: () => vo
   return (
     <div className="m-wrap">
       <div className="m-title">Share album</div>
+
+      <PeopleShare albumId={albumId} />
+
+      <div className="share-sec-label">Guest link</div>
       {state === null ? (
         <div className="m-note">Loading…</div>
       ) : state.shared ? (
@@ -147,7 +156,7 @@ export function ShareCard({ albumId, close }: { albumId: string; close: () => vo
           </div>
           <div className="m-buttons">
             <button type="button" className="m-btn" onClick={close}>
-              Cancel
+              Close
             </button>
             <button type="button" className="m-btn primary" disabled={busy} onClick={create}>
               Create link
@@ -156,5 +165,104 @@ export function ShareCard({ albumId, close }: { albumId: string; close: () => vo
         </>
       )}
     </div>
+  );
+}
+
+/** Grant/revoke named-user access (View / Edit) to an album. */
+function PeopleShare({ albumId }: { albumId: string }) {
+  const { client } = useAuth();
+  const toast = useToast();
+  const [grants, setGrants] = useState<AlbumGrant[] | null>(null);
+  const [username, setUsername] = useState('');
+  const [level, setLevel] = useState<'view' | 'edit'>('view');
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    client.albumGrants(albumId).then((j) => setGrants(j.grants)).catch(() => setGrants([]));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [albumId]);
+
+  const add = async () => {
+    const name = username.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      const album = await client.addAlbumGrant(albumId, { username: name, level });
+      setGrants(album.grants ?? []);
+      setUsername('');
+      toast('Shared with ' + name);
+    } catch (e) {
+      toast((e as Error).message || 'Could not share');
+    }
+    setBusy(false);
+  };
+
+  const changeLevel = async (g: AlbumGrant, next: 'view' | 'edit') => {
+    try {
+      const album = await client.addAlbumGrant(albumId, { username: g.username, level: next });
+      setGrants(album.grants ?? []);
+    } catch {
+      toast('Could not update');
+    }
+  };
+
+  const remove = async (g: AlbumGrant) => {
+    try {
+      const album = await client.removeAlbumGrant(albumId, g.userId);
+      setGrants(album.grants ?? []);
+    } catch {
+      toast('Could not remove');
+    }
+  };
+
+  return (
+    <>
+      <div className="share-sec-label">People</div>
+      <div className="share-add-row">
+        <input
+          className="m-input"
+          placeholder="Username"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+        />
+        <select className="m-select share-lvl" value={level} onChange={(e) => setLevel(e.target.value as 'view' | 'edit')}>
+          <option value="view">Can view</option>
+          <option value="edit">Can edit</option>
+        </select>
+        <button type="button" className="m-btn primary" disabled={busy || !username.trim()} onClick={add}>
+          Add
+        </button>
+      </div>
+      {grants && grants.length > 0 ? (
+        <div className="share-grants">
+          {grants.map((g) => (
+            <div key={g.userId} className="share-grant">
+              <span className="share-grant-ico"><Svg html={ICON.account} /></span>
+              <div className="share-grant-txt">
+                <div className="share-grant-name">{g.displayName || g.username}</div>
+                <div className="share-grant-sub">@{g.username}</div>
+              </div>
+              <select
+                className="m-select share-lvl"
+                value={g.level}
+                onChange={(e) => changeLevel(g, e.target.value as 'view' | 'edit')}
+              >
+                <option value="view">Can view</option>
+                <option value="edit">Can edit</option>
+              </select>
+              <button type="button" className="share-grant-x" title="Remove" onClick={() => remove(g)}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="m-note">Not shared with anyone yet.</div>
+      )}
+    </>
   );
 }

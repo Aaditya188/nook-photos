@@ -5,6 +5,7 @@
  */
 import type {
   Album,
+  AlbumGrant,
   AuthResult,
   PhotoRecord,
   PhotoUpload,
@@ -241,6 +242,20 @@ export class NookClient {
   }
   deleteAlbum(id: string) {
     return this.request<{ ok: true }>('DELETE', `/api/albums/${id}`);
+  }
+
+  /** Photos in an album (owner-agnostic — used for shared albums). */
+  albumPhotos(id: string) {
+    return this.request<{ photos: PhotoRecord[] }>('GET', `/api/albums/${id}/photos`);
+  }
+  albumGrants(id: string) {
+    return this.request<{ grants: AlbumGrant[] }>('GET', `/api/albums/${id}/grants`);
+  }
+  addAlbumGrant(id: string, input: { username: string; level: 'view' | 'edit'; expiresDays?: number }) {
+    return this.request<Album>('POST', `/api/albums/${id}/grants`, { body: input });
+  }
+  removeAlbumGrant(id: string, granteeId: string) {
+    return this.request<Album>('DELETE', `/api/albums/${id}/grants/${granteeId}`);
   }
 
   // ---- album share links (served by the gateway) ----

@@ -111,6 +111,17 @@ export function useDeletedQ(enabled: boolean) {
   });
 }
 
+/** Photos of a (possibly shared) album, fetched from the album endpoint. */
+export function useAlbumPhotosQ(id: string | undefined, enabled: boolean) {
+  const { client, token } = useAuth();
+  return useQuery<PhotoRecord[]>({
+    queryKey: ['albumPhotos', id || ''],
+    queryFn: async () => (await client.albumPhotos(id!)).photos,
+    enabled: !!token && !!id && enabled,
+    staleTime: 15_000,
+  });
+}
+
 export function useAlbumsQ() {
   const { client, token } = useAuth();
   return useQuery<Album[]>({

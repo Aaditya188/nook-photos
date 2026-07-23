@@ -26,7 +26,8 @@ import { useQueryClient } from '@tanstack/react-query';
 export type BarContext =
   | { kind: 'normal' }
   | { kind: 'deleted' }
-  | { kind: 'album'; albumId: string };
+  | { kind: 'album'; albumId: string }
+  | { kind: 'readonly' };
 
 export function SelectionBar({ list, context }: { list: PhotoRecord[]; context: BarContext }) {
   const { selectMode, selectedIds, exitSelect } = useView();
@@ -213,7 +214,9 @@ export function SelectionBar({ list, context }: { list: PhotoRecord[]; context: 
     <div className="selection-bar" role="toolbar" aria-label="Selection actions">
       <span className="sel-count">{n === 0 ? 'Select photos' : n + ' selected'}</span>
       <div className="sel-actions">
-        {context.kind === 'deleted' ? (
+        {context.kind === 'readonly' ? (
+          btn('Download', SVG_DOWNLOAD, bulkDownload)
+        ) : context.kind === 'deleted' ? (
           <>
             {btn('Restore', SVG_RESTORE, bulkRestore)}
             {btn('Download', SVG_DOWNLOAD, bulkDownload)}

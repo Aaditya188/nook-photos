@@ -568,64 +568,84 @@ export function AlbumView() {
   const modals = useModals();
 
   const album = (albumsQ.data || []).find((a) => a.id === id) || null;
+  const role = album?.sharedRole ?? 'owner';
+  const isOwner = role === 'owner';
+  const isShared = !!album && role !== 'owner';
+
+  // Owned albums resolve instantly from the library cache; shared albums fetch
+  // the owner's photos from the album endpoint (they aren't in our library).
+  const sharedPhotosQ = useAlbumPhotosQ(id, isShared);
 
   const list = useMemo(() => {
-    if (!album || !lib.data) return [];
+    if (!album) return [];
+    if (isShared) return sharedPhotosQ.data || [];
+    if (!lib.data) return [];
     const index = new Map(lib.data.map((p) => [p.id, p]));
     return (album.photoIds || []).map((pid) => index.get(pid)).filter(Boolean) as PhotoRecord[];
-  }, [album, lib.data]);
+  }, [album, isShared, sharedPhotosQ.data, lib.data]);
 
-  // Album vanished (deleted elsewhere) → back to Albums.
   useEffect(() => {
     if (albumsQ.data && !album) nav('/albums', { replace: true });
   }, [albumsQ.data, album, nav]);
 
   if (!album) return <div id="grid" />;
 
-  const extra: HeadAction[] = [
-    {
-      label: 'Share',
-      primary: true,
-      onClick: () => modals.openElement((c) => <ShareCard albumId={album.id} close={c} />),
-    },
-    {
-      label: 'Rename',
-      onClick: async () => {
-        const name = await modals.prompt({
-          title: 'Rename Album',
-          placeholder: 'Album name',
-          value: album.name,
-          confirm: 'Save',
-        });
-        if (!name || name === album.name) return;
-        await actions.patchAlbum(album.id, { name }, 'Could not rename album');
+  const extra: HeadAction[] = [];
+  // Only the owner shares, renames, or deletes.
+  if (isOwner) {
+    extra.push(
+      {
+        label: 'Share',
+        primary: true,
+        onClick: () => modals.openElement((c) => <ShareCard albumId={album.id} close={c} />),
       },
-    },
-    {
-      label: 'Delete',
-      danger: true,
-      onClick: async () => {
-        const ok = await modals.confirm({
-          title: 'Delete “' + album.name + '”?',
-          body: 'The album is removed. Your photos are not deleted.',
-          confirm: 'Delete',
-          danger: true,
-        });
-        if (!ok) return;
-        if (await actions.deleteAlbum(album.id)) nav('/albums');
+      {
+        label: 'Rename',
+        onClick: async () => {
+          const name = await modals.prompt({
+            title: 'Rename Album',
+            placeholder: 'Album name',
+            value: album.name,
+            confirm: 'Save',
+          });
+          if (!name || name === album.name) return;
+          await actions.patchAlbum(album.id, { name }, 'Could not rename album');
+        },
       },
-    },
-  ];
+      {
+        label: 'Delete',
+        danger: true,
+        onClick: async () => {
+          const ok = await modals.confirm({
+            title: 'Delete “' + album.name + '”?',
+            body: 'The album is removed. Your photos are not deleted.',
+            confirm: 'Delete',
+            danger: true,
+          });
+          if (!ok) return;
+          if (await actions.deleteAlbum(album.id)) nav('/albums');
+        },
+      },
+    );
+  }
+
+  // Shared albums are read-only unless the grant is Edit.
+  const barContext =
+    isOwner || role === 'edit' ? ({ kind: 'album', albumId: album.id } as const) : ({ kind: 'readonly' } as const);
 
   return (
     <PhotoListView
       title={album.name}
+      subtitle={
+        (list.length ? fmtCount(list.length) : '') +
+        (isShared ? ' · shared by ' + (album.ownerName || 'someone') + (role === 'view' ? ' (view only)' : ' (can edit)') : '')
+      }
       list={list}
       grouped={false}
       emptyKind="album"
       back={{ label: 'Albums', to: '/albums' }}
       extraActions={extra}
-      barContext={{ kind: 'album', albumId: album.id }}
+      barContext={barContext}
     />
   );
 }

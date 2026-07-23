@@ -28,6 +28,7 @@ export interface AlbumRec {
   name: string;
   photoIds: string[];
   coverPhotoId?: string | null;
+  grants?: { userId: string; level?: string; expiresAt?: number | null }[];
 }
 interface Db {
   tokens: Record<string, TokenRec>;
@@ -79,13 +80,30 @@ export function photoById(id: string): PhotoRec | null {
   return load()?.photoById.get(id) ?? null;
 }
 
-/** Authorize a media request: returns the photo if the token's user owns it. */
+/** True if a non-expired album grant lets this user see this photo. */
+function photoSharedToUser(userId: string, photoId: string): boolean {
+  const c = load();
+  if (!c) return false;
+  const now = Date.now();
+  for (const a of c.db.albums) {
+    if (a.userId === userId) continue;
+    const g = (a.grants ?? []).find((x) => x.userId === userId && (!x.expiresAt || x.expiresAt > now));
+    if (g && a.photoIds.includes(photoId)) return true;
+  }
+  return false;
+}
+
+/**
+ * Authorize a media request: returns the photo if the token's user owns it, or
+ * if it's in an album shared with them (read access for shared albums).
+ */
 export function authorizePhoto(token: string | null, id: string): PhotoRec | null {
   const userId = userIdForToken(token);
   if (!userId) return null;
   const photo = photoById(id);
-  if (!photo || photo.userId !== userId) return null;
-  return photo;
+  if (!photo) return null;
+  if (photo.userId === userId || photoSharedToUser(userId, id)) return photo;
+  return null;
 }
 
 export function albumById(id: string): AlbumRec | null {

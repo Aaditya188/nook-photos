@@ -99,6 +99,14 @@ export interface PhotoUpload {
   longitude?: number | null;
 }
 
+export interface AlbumGrant {
+  userId: string;
+  username: string;
+  displayName: string;
+  level: 'view' | 'edit';
+  expiresAt: number | null;
+}
+
 export interface Album {
   id: string;
   userId: string;
@@ -107,6 +115,11 @@ export interface Album {
   photoCount: number;
   photoIds?: string[];
   createdAt: string;
+  /** This viewer's access when the album is shared with them. */
+  sharedRole?: 'owner' | 'edit' | 'view';
+  ownerName?: string;
+  /** Present only for the owner. */
+  grants?: AlbumGrant[];
 }
 
 export interface Person {

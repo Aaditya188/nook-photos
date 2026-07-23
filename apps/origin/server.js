@@ -418,8 +418,10 @@ function toPublicPhoto(p) {
   };
 }
 
-function toPublicAlbum(a) {
-  return {
+function toPublicAlbum(a, viewerId) {
+  const level = viewerId ? albumAccessLevel(a, viewerId) : 'owner';
+  const owner = db.users.find((u) => u.id === a.userId);
+  const out = {
     id: a.id,
     userId: a.userId,
     name: a.name,
@@ -427,7 +429,26 @@ function toPublicAlbum(a) {
     photoCount: a.photoIds.length,
     photoIds: a.photoIds.slice(),
     createdAt: a.createdAt,
+    sharedRole: level || 'view',
+    ownerName: owner ? (owner.displayName || owner.username) : '',
   };
+  // Only the owner sees the grant list (with usernames resolved).
+  if (level === 'owner') {
+    const now = Date.now();
+    out.grants = (Array.isArray(a.grants) ? a.grants : [])
+      .filter((g) => !g.expiresAt || g.expiresAt > now)
+      .map((g) => {
+        const u = db.users.find((x) => x.id === g.userId);
+        return {
+          userId: g.userId,
+          username: u ? u.username : '',
+          displayName: u ? (u.displayName || u.username) : '',
+          level: g.level === 'edit' ? 'edit' : 'view',
+          expiresAt: g.expiresAt || null,
+        };
+      });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -1344,14 +1365,10 @@ function handleEmptyDeleted(res, user) {
 }
 
 function handleListAlbums(res, user) {
-  const mine = db.albums
-    .filter((a) => a.userId === user.id)
-    .sort((a, b) => {
-      const ta = Date.parse(a.createdAt) || 0;
-      const tb = Date.parse(b.createdAt) || 0;
-      return tb - ta;
-    });
-  sendJson(res, 200, { albums: mine.map(toPublicAlbum) });
+  const visible = db.albums
+    .filter((a) => albumAccessLevel(a, user.id) != null)
+    .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+  sendJson(res, 200, { albums: visible.map((a) => toPublicAlbum(a, user.id)) });
 }
 
 async function handleCreateAlbum(req, res, user) {
@@ -1373,12 +1390,22 @@ async function handleCreateAlbum(req, res, user) {
   sendJson(res, 201, toPublicAlbum(album));
 }
 
-function handleGetAlbum(res, album) {
-  sendJson(res, 200, toPublicAlbum(album));
+function handleGetAlbum(res, album, user) {
+  sendJson(res, 200, toPublicAlbum(album, user.id));
 }
 
 async function handlePatchAlbum(req, res, album, user) {
   const body = await readJsonBody(req);
+  const level = albumAccessLevel(album, user.id);
+  const isOwner = level === 'owner';
+  const canEdit = isOwner || level === 'edit';
+  // Renaming, cover, and grants are owner-only; adding/removing photos needs edit.
+  if ((body.name !== undefined || body.coverPhotoId !== undefined) && !isOwner) {
+    throw httpError(403, 'only the owner can rename or set the cover');
+  }
+  if ((body.addPhotoIds !== undefined || body.removePhotoIds !== undefined) && !canEdit) {
+    throw httpError(403, 'you have view-only access to this album');
+  }
   if (body.name !== undefined) {
     if (typeof body.name !== 'string' || body.name.length === 0) {
       throw httpError(400, 'name must be a non-empty string');
@@ -1412,13 +1439,61 @@ async function handlePatchAlbum(req, res, album, user) {
     }
   }
   persist();
-  sendJson(res, 200, toPublicAlbum(album));
+  sendJson(res, 200, toPublicAlbum(album, user.id));
 }
 
 function handleDeleteAlbum(res, album) {
   db.albums = db.albums.filter((a) => a.id !== album.id);
   persist();
   sendJson(res, 200, { ok: true });
+}
+
+/** Photos in an album, viewer-agnostic (owner's photos) — for shared viewing. */
+function handleAlbumPhotos(res, album) {
+  const byId = new Map(db.photos.map((p) => [p.id, p]));
+  const photos = album.photoIds
+    .map((pid) => byId.get(pid))
+    .filter((p) => p && p.deletedAt == null)
+    .map(toPublicPhoto);
+  sendJson(res, 200, { photos: photos });
+}
+
+// ---- album grants (share with a named user at view/edit) ----
+
+function handleListGrants(res, album, user) {
+  if (album.userId !== user.id) throw httpError(403, 'only the owner can manage sharing');
+  sendJson(res, 200, { grants: toPublicAlbum(album, user.id).grants || [] });
+}
+
+async function handleAddGrant(req, res, album, user) {
+  if (album.userId !== user.id) throw httpError(403, 'only the owner can manage sharing');
+  const body = await readJsonBody(req);
+  const username = typeof body.username === 'string' ? body.username.trim() : '';
+  const level = body.level === 'edit' ? 'edit' : 'view';
+  const target = findUserByUsername(username);
+  if (!target) throw httpError(404, 'no user named ' + username);
+  if (target.id === user.id) throw httpError(400, 'you already own this album');
+  if (!Array.isArray(album.grants)) album.grants = [];
+  const expiresAt =
+    body.expiresDays && Number(body.expiresDays) > 0
+      ? Date.now() + Number(body.expiresDays) * 86400000
+      : null;
+  const existing = album.grants.find((g) => g.userId === target.id);
+  if (existing) {
+    existing.level = level;
+    existing.expiresAt = expiresAt;
+  } else {
+    album.grants.push({ userId: target.id, level: level, expiresAt: expiresAt });
+  }
+  persist();
+  sendJson(res, 200, toPublicAlbum(album, user.id));
+}
+
+function handleRemoveGrant(res, album, user, granteeId) {
+  if (album.userId !== user.id) throw httpError(403, 'only the owner can manage sharing');
+  album.grants = (Array.isArray(album.grants) ? album.grants : []).filter((g) => g.userId !== granteeId);
+  persist();
+  sendJson(res, 200, toPublicAlbum(album, user.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -1439,6 +1514,41 @@ function ownedAlbum(id, user) {
   const album = findAlbum(id);
   if (!album || album.userId !== user.id) throw httpError(404, 'no album with id ' + id);
   return album;
+}
+
+// ---- album sharing: per-user grants (view / edit) with optional TTL ----
+
+/** Active grant for a user on an album, or null (prunes/ignores expired). */
+function grantFor(album, userId) {
+  const grants = Array.isArray(album.grants) ? album.grants : [];
+  const now = Date.now();
+  for (const g of grants) {
+    if (g.userId === userId && (!g.expiresAt || g.expiresAt > now)) return g;
+  }
+  return null;
+}
+
+/** 'owner' | 'edit' | 'view' | null — a user's access level to an album. */
+function albumAccessLevel(album, userId) {
+  if (album.userId === userId) return 'owner';
+  const g = grantFor(album, userId);
+  return g ? (g.level === 'edit' ? 'edit' : 'view') : null;
+}
+
+/** Fetch an album the user can at least view (owner or grantee); else 404. */
+function accessibleAlbum(id, user) {
+  const album = findAlbum(id);
+  if (!album || !albumAccessLevel(album, user.id)) throw httpError(404, 'no album with id ' + id);
+  return album;
+}
+
+/** True if the user can see/serve a photo because a shared album contains it. */
+function photoSharedToUser(photoId, userId) {
+  for (const a of db.albums) {
+    if (a.userId === userId) continue;
+    if (grantFor(a, userId) && a.photoIds.indexOf(photoId) !== -1) return true;
+  }
+  return false;
 }
 
 async function handleApi(req, res, pathname) {
@@ -1512,23 +1622,43 @@ async function handleApi(req, res, pathname) {
   if (pm) {
     const id = pm[1];
     const sub = pm[2] || null;
+    // Read-only media (thumb/original GET) is also allowed when the photo is in
+    // an album shared with this user; all mutations stay owner-only.
+    if (sub === 'thumb' && req.method === 'GET') {
+      const p = findPhoto(id);
+      if (p && (p.userId === user.id || photoSharedToUser(id, user.id))) return handleGetThumb(req, res, p);
+      throw httpError(404, 'no photo with id ' + id);
+    }
+    if (sub === 'original' && req.method === 'GET') {
+      const p = findPhoto(id);
+      if (p && (p.userId === user.id || photoSharedToUser(id, user.id))) return handleGetOriginal(req, res, p);
+      throw httpError(404, 'no photo with id ' + id);
+    }
     const photo = ownedPhoto(id, user);
     if (sub === 'thumb' && req.method === 'PUT') return handlePutThumb(req, res, photo);
-    if (sub === 'thumb' && req.method === 'GET') return handleGetThumb(req, res, photo);
     if (sub === 'original' && req.method === 'PUT') return handlePutOriginal(req, res, photo, user);
-    if (sub === 'original' && req.method === 'GET') return handleGetOriginal(req, res, photo);
     if (sub === 'restore' && req.method === 'POST') return handleRestorePhoto(res, photo);
     if (sub === 'permanent' && req.method === 'DELETE') return handlePermanentDeletePhoto(res, photo);
     if (sub === null && req.method === 'PATCH') return handlePatchPhoto(req, res, photo);
     if (sub === null && req.method === 'DELETE') return handleDeletePhoto(res, photo);
   }
 
+  // Album sub-routes: /photos (view+), /grants, /grants/:userId (owner).
+  const agm = /^\/api\/albums\/([A-Za-z0-9_-]+)\/(photos|grants)(?:\/([A-Za-z0-9_-]+))?$/.exec(pathname);
+  if (agm) {
+    const album = accessibleAlbum(agm[1], user);
+    if (agm[2] === 'photos' && req.method === 'GET') return handleAlbumPhotos(res, album);
+    if (agm[2] === 'grants' && !agm[3] && req.method === 'GET') return handleListGrants(res, album, user);
+    if (agm[2] === 'grants' && !agm[3] && req.method === 'POST') return handleAddGrant(req, res, album, user);
+    if (agm[2] === 'grants' && agm[3] && req.method === 'DELETE') return handleRemoveGrant(res, album, user, agm[3]);
+  }
+
   const am = ALBUM_ROUTE.exec(pathname);
   if (am) {
-    const album = ownedAlbum(am[1], user);
-    if (req.method === 'GET') return handleGetAlbum(res, album);
+    if (req.method === 'DELETE') return handleDeleteAlbum(res, ownedAlbum(am[1], user));
+    const album = accessibleAlbum(am[1], user);
+    if (req.method === 'GET') return handleGetAlbum(res, album, user);
     if (req.method === 'PATCH') return handlePatchAlbum(req, res, album, user);
-    if (req.method === 'DELETE') return handleDeleteAlbum(res, album);
   }
 
   throw httpError(404, 'not found: ' + req.method + ' ' + pathname);

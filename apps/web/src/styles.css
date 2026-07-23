@@ -3780,3 +3780,52 @@ h3.day-header {
 .up-bar { height: 6px; border-radius: 4px; background: rgba(127,127,135,0.2); overflow: hidden; margin: 10px 0 8px; }
 .up-bar-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width 0.2s ease; }
 .up-panel-sub { font-size: 12px; color: var(--text-55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --------------------------------------------------- album share: people */
+
+.share-sec-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-45);
+  margin: 16px 0 8px;
+}
+
+.share-add-row { display: flex; gap: 8px; align-items: stretch; }
+.share-add-row .m-input { flex: 1; margin: 0; }
+.share-lvl {
+  flex: none;
+  background: var(--input-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.share-grants { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+
+.share-grant {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--surface-3);
+  border: 0.5px solid var(--hairline);
+  border-radius: 11px;
+  padding: 9px 12px;
+}
+
+.share-grant-ico { width: 20px; height: 20px; color: var(--text-55); flex: none; }
+.share-grant-ico svg { width: 20px; height: 20px; }
+.share-grant-txt { flex: 1; min-width: 0; }
+.share-grant-name { font-size: 14px; font-weight: 600; }
+.share-grant-sub { font-size: 12px; color: var(--text-55); }
+.share-grant-x {
+  flex: none;
+  width: 28px; height: 28px;
+  border: none; background: none;
+  color: var(--text-45); font-size: 20px; line-height: 1;
+  cursor: pointer; border-radius: 8px;
+}
+.share-grant-x:hover { background: var(--hover); color: var(--pink); }
