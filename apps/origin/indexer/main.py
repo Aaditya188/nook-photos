@@ -155,8 +155,18 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         body = self._body()
         if u.path == "/person":
-            STORE.rename_person(body.get("userId", "_"), body.get("personId", ""), (body.get("name") or "").strip())
+            user_id = body.get("userId", "_")
+            person_id = body.get("personId", "")
+            if "name" in body:
+                STORE.rename_person(user_id, person_id, (body.get("name") or "").strip())
+            if "hidden" in body:
+                STORE.set_person_hidden(user_id, person_id, bool(body.get("hidden")))
             return self._send(200, {"ok": True})
+        if u.path == "/person/merge":
+            moved = STORE.merge_people(
+                body.get("userId", "_"), body.get("fromId", ""), body.get("intoId", "")
+            )
+            return self._send(200, {"ok": True, "moved": moved})
         return self._send(404, {"error": "not found"})
 
 

@@ -596,13 +596,30 @@ async function handlePersonPhotos(res, user, personId) {
 
 async function handlePatchPerson(req, res, user, personId) {
   const body = await readJsonBody(req);
-  const name = typeof body.name === 'string' ? body.name : '';
+  const payload = { userId: user.id, personId: personId };
+  if (typeof body.name === 'string') payload.name = body.name;
+  if (typeof body.hidden === 'boolean') payload.hidden = body.hidden;
   try {
-    await indexerRequest('PATCH', '/person', { userId: user.id, personId: personId, name: name });
+    await indexerRequest('PATCH', '/person', payload);
   } catch (e) {
     throw httpError(503, 'people is not available');
   }
   sendJson(res, 200, { ok: true });
+}
+
+/** Merge one face cluster into another (all faces move; the source disappears). */
+async function handleMergePeople(req, res, user) {
+  const body = await readJsonBody(req);
+  const fromId = typeof body.fromId === 'string' ? body.fromId : '';
+  const intoId = typeof body.intoId === 'string' ? body.intoId : '';
+  if (!fromId || !intoId || fromId === intoId) throw httpError(400, 'fromId and intoId required');
+  let out;
+  try {
+    out = await indexerRequest('PATCH', '/person/merge', { userId: user.id, fromId, intoId });
+  } catch (e) {
+    throw httpError(503, 'people is not available');
+  }
+  sendJson(res, 200, { ok: true, moved: (out && out.moved) || 0 });
 }
 
 async function handlePlaces(res, user) {
@@ -1234,6 +1251,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/people' && req.method === 'GET') return handlePeople(res, user);
   if (pathname === '/api/places' && req.method === 'GET') return handlePlaces(res, user);
   if (pathname === '/api/place-photos' && req.method === 'GET') return handlePlacePhotos(res, user, query.label || '');
+  if (pathname === '/api/people/merge' && req.method === 'POST') return handleMergePeople(req, res, user);
   const personMatch = /^\/api\/people\/([A-Za-z0-9_-]+)(?:\/(photos))?$/.exec(pathname);
   if (personMatch) {
     const personId = personMatch[1];

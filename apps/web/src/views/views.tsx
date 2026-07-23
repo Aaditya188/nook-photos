@@ -29,7 +29,8 @@ import {
   type HeadAction,
 } from '../components/chrome';
 import { fmtCount } from '../lib/format';
-import { SVG_FINGERPRINT, SVG_LOCK, SVG_PLUS, Svg } from '../lib/icons';
+import { ICON, SVG_FINGERPRINT, SVG_LOCK, SVG_PLUS, Svg } from '../lib/icons';
+import type { Person } from '@nook/core';
 import {
   bioDecline,
   bioDeclined,
@@ -373,11 +374,13 @@ export function PlacesView() {
 export function PersonView() {
   const { id = '' } = useParams();
   const peopleQ = usePeopleQ();
-  const person = (peopleQ.data || []).find((x) => x.id === id) || null;
+  const people = peopleQ.data || [];
+  const person = people.find((x) => x.id === id) || null;
   const photosQ = usePersonPhotosQ(id);
   const list = photosQ.data || [];
   const actions = useActions();
   const modals = useModals();
+  const nav = useNavigate();
 
   const extra: HeadAction[] = [
     {
@@ -393,6 +396,47 @@ export function PersonView() {
         await actions.renamePerson(id, name);
       },
     },
+    {
+      label: 'Merge into…',
+      onClick: () =>
+        modals.openElement((close) => (
+          <MergePickerCard
+            people={people.filter((x) => x.id !== id)}
+            close={close}
+            onPick={async (target) => {
+              close();
+              const ok = await modals.confirm({
+                title: 'Merge people?',
+                body:
+                  'All photos of ' +
+                  (person?.name || 'this person') +
+                  ' will move into ' +
+                  (target.name || 'the selected person') +
+                  '. This cannot be undone from the app.',
+                confirm: 'Merge',
+              });
+              if (!ok) return;
+              if (await actions.mergePeople(id, target.id)) {
+                nav('/person/' + encodeURIComponent(target.id), { replace: true });
+              }
+            }}
+          />
+        )),
+    },
+    {
+      label: 'Hide',
+      danger: true,
+      onClick: async () => {
+        const ok = await modals.confirm({
+          title: 'Hide ' + (person?.name || 'this person') + '?',
+          body: 'They disappear from the People rail. Their photos stay in your library.',
+          confirm: 'Hide',
+          danger: true,
+        });
+        if (!ok) return;
+        if (await actions.hidePerson(id)) nav('/people', { replace: true });
+      },
+    },
   ];
 
   return (
@@ -404,6 +448,44 @@ export function PersonView() {
       back={{ label: 'People', to: '/people' }}
       extraActions={extra}
     />
+  );
+}
+
+/** Pick the person a cluster should merge into. */
+function MergePickerCard({
+  people,
+  close,
+  onPick,
+}: {
+  people: Person[];
+  close: () => void;
+  onPick: (target: Person) => void;
+}) {
+  return (
+    <div className="m-wrap">
+      <div className="m-title">Merge into…</div>
+      <p className="m-body">Pick who these photos actually belong to.</p>
+      <div className="m-list">
+        {people.length === 0 ? (
+          <div className="m-note">No other people to merge into.</div>
+        ) : (
+          people.map((t) => (
+            <button key={t.id} type="button" className="m-row" onClick={() => onPick(t)}>
+              <span className="m-row-ico">
+                <Svg html={ICON.people} />
+              </span>
+              <span className="m-row-name">{t.name || 'Unnamed'}</span>
+              <span className="m-row-in">{fmtCount(t.count)}</span>
+            </button>
+          ))
+        )}
+      </div>
+      <div className="m-buttons">
+        <button type="button" className="m-btn" onClick={close}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 

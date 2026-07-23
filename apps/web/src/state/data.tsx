@@ -359,6 +359,33 @@ export function useActions() {
     [client, qc, run, toast],
   );
 
+  const hidePerson = useCallback(
+    async (id: string) => {
+      const res = await run(() => client.setPersonHidden(id, true), 'Could not hide person');
+      if (res !== null) {
+        qc.setQueryData<Person[]>(qk.people, (l) => (l ? l.filter((x) => x.id !== id) : l));
+        toast('Person hidden');
+        return true;
+      }
+      return false;
+    },
+    [client, qc, run, toast],
+  );
+
+  const mergePeople = useCallback(
+    async (fromId: string, intoId: string) => {
+      const res = await run(() => client.mergePeople(fromId, intoId), 'Could not merge');
+      if (res !== null) {
+        qc.invalidateQueries({ queryKey: qk.people });
+        qc.invalidateQueries({ queryKey: ['personPhotos'] });
+        toast('People merged');
+        return true;
+      }
+      return false;
+    },
+    [client, qc, run, toast],
+  );
+
   const updateAccount = useCallback(
     (input: Parameters<typeof client.updateAccount>[0]) => client.updateAccount(input),
     [client],
@@ -375,6 +402,8 @@ export function useActions() {
     patchAlbum,
     deleteAlbum,
     renamePerson,
+    hidePerson,
+    mergePeople,
     updateAccount,
   };
 }

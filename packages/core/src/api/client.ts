@@ -205,6 +205,14 @@ export class NookClient {
   renamePerson(id: string, name: string) {
     return this.request<{ ok: true }>('PATCH', `/api/people/${id}`, { body: { name } });
   }
+  setPersonHidden(id: string, hidden: boolean) {
+    return this.request<{ ok: true }>('PATCH', `/api/people/${id}`, { body: { hidden } });
+  }
+  mergePeople(fromId: string, intoId: string) {
+    return this.request<{ ok: true; moved: number }>('POST', '/api/people/merge', {
+      body: { fromId, intoId },
+    });
+  }
   places() {
     return this.request<{ places: Place[] }>('GET', '/api/places');
   }

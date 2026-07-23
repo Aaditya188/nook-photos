@@ -86,6 +86,10 @@ class Store:
             CREATE INDEX IF NOT EXISTS places_user ON places(user_id);
             """
         )
+        # Migration: people.hidden (0/1) for hiding a person from the rail.
+        cols = [r[1] for r in c.execute("PRAGMA table_info(people)")]
+        if "hidden" not in cols:
+            c.execute("ALTER TABLE people ADD COLUMN hidden INTEGER DEFAULT 0")
         c.commit()
 
     def _load_into_memory(self):
@@ -325,11 +329,19 @@ class Store:
                     g["cover_score"] = r["det_score"]
                     g["cover"] = r["photo_id"]
                     g["box"] = r.get("box")
-            names = {pid: name for pid, uid, name in
-                     self._db.execute("SELECT person_id,user_id,name FROM people WHERE user_id=?", (user_id,))}
+            names = {}
+            hidden = set()
+            for pid, name, hid in self._db.execute(
+                "SELECT person_id,name,hidden FROM people WHERE user_id=?", (user_id,)
+            ):
+                names[pid] = name
+                if hid:
+                    hidden.add(pid)
             out = []
             for person_id, g in groups.items():
                 if len(g["photos"]) < MIN_PERSON_PHOTOS:
+                    continue
+                if person_id in hidden:
                     continue
                 out.append({
                     "id": person_id,
@@ -357,6 +369,47 @@ class Store:
                 (person_id, user_id, name),
             )
             self._db.commit()
+
+    def set_person_hidden(self, user_id: str, person_id: str, hidden: bool):
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO people(person_id,user_id,name,hidden) VALUES(?,?,NULL,?) "
+                "ON CONFLICT(person_id) DO UPDATE SET hidden=excluded.hidden",
+                (person_id, user_id, 1 if hidden else 0),
+            )
+            self._db.commit()
+
+    def merge_people(self, user_id: str, from_id: str, into_id: str) -> int:
+        """Reassign every face in `from_id` to `into_id`. Keeps the target's
+        name (adopting the source's if the target is unnamed). Returns the
+        number of faces moved."""
+        if not from_id or not into_id or from_id == into_id:
+            return 0
+        with self._lock:
+            cur = self._db.execute(
+                "UPDATE faces SET person_id=? WHERE user_id=? AND person_id=?",
+                (into_id, user_id, from_id),
+            )
+            moved = cur.rowcount
+            names = {
+                pid: name
+                for pid, name in self._db.execute(
+                    "SELECT person_id,name FROM people WHERE person_id IN (?,?)",
+                    (from_id, into_id),
+                )
+            }
+            if names.get(from_id) and not names.get(into_id):
+                self._db.execute(
+                    "INSERT INTO people(person_id,user_id,name) VALUES(?,?,?) "
+                    "ON CONFLICT(person_id) DO UPDATE SET name=excluded.name",
+                    (into_id, user_id, names[from_id]),
+                )
+            self._db.execute("DELETE FROM people WHERE person_id=?", (from_id,))
+            self._db.commit()
+            for r in self._face_rows.get(user_id, []):
+                if r["person_id"] == from_id:
+                    r["person_id"] = into_id
+            return moved
 
     def places(self, user_id: str) -> list:
         with self._lock:
