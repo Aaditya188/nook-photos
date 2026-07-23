@@ -58,19 +58,15 @@ await app.register(replyFrom, { base: ORIGIN, http2: false });
 
 // Serve the built web app (apps/web/dist) at / with SPA fallback.
 if (HAS_WEB) {
+  await app.register(fastifyStatic, { root: WEB_DIST, wildcard: false });
   // Hashed bundles (/assets/*) are immutable → let browsers AND the CDN edge
-  // (e.g. Cloudflare in front of the tunnel) cache them for a year. Everything
-  // else (index.html, styles) revalidates.
-  await app.register(fastifyStatic, {
-    root: WEB_DIST,
-    wildcard: false,
-    setHeaders(res, filePath) {
-      if (/[\\/]assets[\\/]/.test(filePath)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      } else {
-        res.setHeader('Cache-Control', 'no-cache');
-      }
-    },
+  // (e.g. Cloudflare in front of the tunnel) cache them for a year. An onSend
+  // hook has the final say over the static plugin's default max-age=0.
+  app.addHook('onSend', (req, reply, payload, done) => {
+    if (req.url.startsWith('/assets/') || req.url.startsWith('/icons/')) {
+      reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    done(null, payload);
   });
   app.log.info(`serving web app from ${WEB_DIST}`);
 }

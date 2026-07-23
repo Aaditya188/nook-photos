@@ -72,9 +72,16 @@ button {
   color: inherit;
 }
 
-button:focus-visible, .tile:focus-visible {
+button:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
+}
+
+/* Photo tiles never show the focus ring — a border across the image reads as
+   selection. (Keyboard flows use the viewer's own controls.) */
+.tile:focus,
+.tile:focus-visible {
+  outline: none;
 }
 
 .hidden { display: none !important; }
