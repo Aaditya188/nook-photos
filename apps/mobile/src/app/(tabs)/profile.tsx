@@ -97,6 +97,17 @@ export default function ProfileScreen() {
 
       <View style={{ gap: t.spacing.sm }}>
         <Text variant="label" color={t.colors.onSurfaceVariant}>
+          STORAGE
+        </Text>
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <AccountRow icon="bar-chart" label="Storage Insights" onPress={() => router.push('/storage')} />
+          <Divider />
+          <AccountRow icon="content-copy" label="Duplicates" onPress={() => router.push('/duplicates')} />
+        </Card>
+      </View>
+
+      <View style={{ gap: t.spacing.sm }}>
+        <Text variant="label" color={t.colors.onSurfaceVariant}>
           APPEARANCE
         </Text>
         <Card style={{ padding: 6 }}>
