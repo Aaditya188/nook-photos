@@ -130,7 +130,7 @@ function Shell() {
   const contentRef = useRef<HTMLElement | null>(null);
   const location = useLocation();
 
-  useStickyHeights();
+  useStickyHeights(location.pathname);
   useGridZoomGestures(contentRef);
 
   // Search is a photo-library affordance — hide it on admin/utility pages.
