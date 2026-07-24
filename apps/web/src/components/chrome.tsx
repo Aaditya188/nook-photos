@@ -70,10 +70,10 @@ export function TopBar({
         <div className="wordmark">nook</div>
       </div>
 
-      <div className={pillCls}>
+      <div className={pillCls} title={statusText}>
         <span className="dot" />
         {fetching ? <PillLoader /> : null}
-        <span>{statusText}</span>
+        <span className="status-text">{statusText}</span>
       </div>
 
       <div className="topbar-right">

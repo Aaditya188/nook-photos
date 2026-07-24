@@ -979,6 +979,16 @@ button:focus-visible {
   .auth-card { padding: 28px 22px; }
 }
 
+@media (max-width: 720px) {
+  /* Topbar is tight on phones: collapse the backup pill to a status dot (its
+     full text stays available as a title/tooltip) so the brand and Upload
+     button never get clipped. */
+  .status-pill { max-width: none; padding: 8px; gap: 0; }
+  .status-pill .status-text { display: none; }
+  .brand { flex: 0 1 auto; }
+  .topbar-right { flex: 1 0 auto; }
+}
+
 /* ---------------------------------------------------- search toolbar */
 /* Search + view header stay pinned under the topbar while the grid scrolls.
    Heights are measured into --topbar-h / --toolbar-h by syncStickyHeights().
@@ -3522,8 +3532,35 @@ h3.day-header {
 .set-storage-fill { height: 100%; background: var(--green); border-radius: 5px; }
 
 @media (max-width: 720px) {
-  .settings { flex-direction: column; }
-  .settings-rail { flex-direction: row; width: 100%; overflow-x: auto; position: static; }
+  /* The section rail becomes a horizontal, scrollable pill bar under the title.
+     .view-head is normally sticky with an opaque background offset by the search
+     toolbar's height; on the toolbar-less Settings page that offset made it paint
+     over the rail — so drop the header's stickiness on small screens. */
+  .view-head { position: static; top: auto; }
+  .settings { flex-direction: column; gap: 10px; margin-top: 4px; }
+  .settings-rail {
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+    position: static;
+    top: auto;
+    gap: 8px;
+    padding: 2px 0 10px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .settings-rail::-webkit-scrollbar { display: none; }
+  .settings-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 9px 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 13.5px;
+  }
+  .settings-tab.active { background: var(--sel-bg); color: var(--green); }
+  /* Keep section actions (e.g. Add user) beside the heading, wrapping if tight. */
+  .set-section-head { flex-wrap: wrap; gap: 10px; }
 }
 
 /* ===================== editor v2 — side-panel redesign ===================== */

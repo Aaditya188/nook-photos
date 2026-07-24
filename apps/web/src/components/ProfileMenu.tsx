@@ -17,6 +17,8 @@ function initials(name: string): string {
 
 const SVG_SETTINGS =
   '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const SVG_ACCOUNT =
+  '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 const SVG_LOGOUT =
   '<svg viewBox="0 0 24 24" fill="none"><path d="M14 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 12h8m0 0l-3-3m3 3l-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const THEME_GLYPH: Record<ThemePref, string> = {
@@ -65,6 +67,10 @@ export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }) {
     <div className="profile-menu" ref={rootRef}>
       {open ? (
         <div className="pm-popover" role="menu">
+          <button type="button" className="pm-item" onClick={() => go('/profile')}>
+            <Svg className="pm-item-ico" html={SVG_ACCOUNT} />
+            <span>Profile</span>
+          </button>
           <button type="button" className="pm-item" onClick={() => go('/settings')}>
             <Svg className="pm-item-ico" html={SVG_SETTINGS} />
             <span>Settings</span>

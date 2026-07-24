@@ -252,6 +252,7 @@ function Shell() {
               />
               <Route path="/trips" element={<TripsView />} />
               <Route path="/trip/:id" element={<TripView />} />
+              <Route path="/profile" element={<SettingsView />} />
               <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
               <Route path="/settings/:section" element={<SettingsView />} />
               <Route path="/backup" element={<BackupHealthView />} />
