@@ -10,3 +10,6 @@ reverse_geocoder>=1.5
 onnxruntime>=1.17
 numpy>=1.26
 pillow>=10.0
+# OCR: text inside screenshots/documents (ONNX runtime, no PaddlePaddle).
+# Optional — the indexer runs fine without it; OCR is simply disabled.
+rapidocr_onnxruntime>=1.3

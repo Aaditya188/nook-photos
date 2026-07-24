@@ -3,6 +3,7 @@
 Faces and geocoding degrade gracefully — if their optional deps or model files
 are unavailable, that capability is simply disabled and the rest keeps working.
 """
+import os
 import numpy as np
 
 
@@ -83,6 +84,26 @@ class Places:
         return {"city": city, "admin1": admin1, "cc": cc, "label": label}
 
 
+class Ocr:
+    """Text recognition via RapidOCR (ONNX runtime — reuses the existing ORT
+    stack, no PaddlePaddle). Returns the concatenated text found in an image."""
+
+    def __init__(self):
+        from rapidocr_onnxruntime import RapidOCR
+
+        self._ocr = RapidOCR()
+
+    def read(self, path: str) -> str:
+        try:
+            result, _ = self._ocr(path)
+        except Exception:
+            return ""
+        if not result:
+            return ""
+        parts = [str(line[1]).strip() for line in result if len(line) > 1 and line[1]]
+        return " ".join(p for p in parts if p)
+
+
 def load_models(enable_faces: bool = True):
     """Load available models; None for any that fail so the service still runs."""
     clip = Clip()  # required — if CLIP fails, the indexer is pointless, let it raise
@@ -99,7 +120,14 @@ def load_models(enable_faces: bool = True):
         print("[models] places enabled (reverse_geocoder)", flush=True)
     except Exception as e:
         print("[models] places DISABLED:", e, flush=True)
-    return clip, faces, places
+    ocr = None
+    if os.environ.get("NOOK_ENABLE_OCR", "1") != "0":
+        try:
+            ocr = Ocr()
+            print("[models] OCR enabled (rapidocr)", flush=True)
+        except Exception as e:
+            print("[models] OCR DISABLED (pip install rapidocr_onnxruntime):", e, flush=True)
+    return clip, faces, places, ocr
 
 
 def load_bgr(path: str):

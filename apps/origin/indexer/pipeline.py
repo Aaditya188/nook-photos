@@ -12,7 +12,7 @@ from models import load_bgr
 
 
 class Pipeline:
-    def __init__(self, data_dir, store, clip, faces, places, poll_interval=15):
+    def __init__(self, data_dir, store, clip, faces, places, ocr=None, poll_interval=15):
         self.data_dir = data_dir
         self.db_path = os.path.join(data_dir, "db.json")
         self.thumbs = os.path.join(data_dir, "thumbs")
@@ -20,6 +20,7 @@ class Pipeline:
         self.clip = clip
         self.faces = faces
         self.places = places
+        self.ocr = ocr
         self.poll_interval = poll_interval
         self._stop = threading.Event()
         self._dirty = False  # new faces added since the last authoritative recluster
@@ -78,6 +79,10 @@ class Pipeline:
             if self._dirty:
                 self._recluster_all()
                 self._dirty = False
+            # Backfill OCR onto photos indexed before OCR was enabled — a batch per
+            # idle tick so it never blocks new-photo indexing.
+            if self.ocr is not None:
+                self._ocr_backfill()
             return
         self.status["indexing"] = True
         for p in todo:
@@ -88,6 +93,18 @@ class Pipeline:
             self.status["pending"] = len(todo) - self.status["done"] if False else max(0, self.status["pending"] - 1)
         self._dirty = True
         self.status["indexing"] = False
+
+    def _ocr_backfill(self):
+        batch = self.store.photos_missing_ocr(limit=40)
+        if not batch:
+            return
+        for pid, uid in batch:
+            if self._stop.is_set():
+                break
+            thumb = os.path.join(self.thumbs, pid + ".jpg")
+            text = self.ocr.read(thumb) if os.path.exists(thumb) else ""
+            self.store.add_ocr(pid, uid or "_", text)
+        print(f"[pipeline] OCR backfill: {len(batch)} photos", flush=True)
 
     def _index_photo(self, p):
         pid = p["id"]
@@ -122,6 +139,9 @@ class Pipeline:
                     place = self.places.lookup(lat, lon)
                     if place and place.get("label"):
                         self.store.add_place(pid, uid, place)
+
+            if self.ocr is not None:
+                self.store.add_ocr(pid, uid, self.ocr.read(thumb))
 
             self.store.mark(pid, "done")
         except Exception as e:

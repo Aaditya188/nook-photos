@@ -78,12 +78,16 @@ class Store:
                 photo_id TEXT PRIMARY KEY, user_id TEXT,
                 city TEXT, admin1 TEXT, cc TEXT, label TEXT
             );
+            CREATE TABLE IF NOT EXISTS photo_text (
+                photo_id TEXT PRIMARY KEY, user_id TEXT, text TEXT
+            );
             CREATE TABLE IF NOT EXISTS index_state (
                 photo_id TEXT PRIMARY KEY, status TEXT, error TEXT, updated_at REAL
             );
             CREATE INDEX IF NOT EXISTS faces_user ON faces(user_id);
             CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id);
             CREATE INDEX IF NOT EXISTS places_user ON places(user_id);
+            CREATE INDEX IF NOT EXISTS phototext_user ON photo_text(user_id);
             """
         )
         # Migration: people.hidden (0/1) for hiding a person from the rail.
@@ -273,12 +277,35 @@ class Store:
             )
             self._db.commit()
 
+    def add_ocr(self, photo_id: str, user_id: str, text: str):
+        """Store text recognized in a photo (OCR). Empty text still records a row
+        so the backfill pass doesn't keep re-OCRing blank images."""
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO photo_text(photo_id,user_id,text) VALUES(?,?,?)",
+                (photo_id, user_id, (text or "").strip()),
+            )
+            self._db.commit()
+
+    def photos_missing_ocr(self, limit: int = 40) -> list:
+        """Already-CLIP-indexed photos that have no OCR row yet — for backfilling
+        OCR onto a library indexed before OCR was enabled."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT e.photo_id, e.user_id FROM photo_embeddings e "
+                "LEFT JOIN photo_text t ON t.photo_id = e.photo_id "
+                "WHERE t.photo_id IS NULL LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
     def remove_photo(self, photo_id: str):
         """Drop all index rows for a photo (deleted/purged on the Node side)."""
         with self._lock:
             self._db.execute("DELETE FROM photo_embeddings WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM places WHERE photo_id=?", (photo_id,))
+            self._db.execute("DELETE FROM photo_text WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM index_state WHERE photo_id=?", (photo_id,))
             self._db.commit()
             # Rebuild in-memory caches for affected users lazily on next load; here
@@ -315,6 +342,15 @@ class Store:
                     ll = (label or "").lower()
                     if any(t in ll for t in tokens):
                         scores[pid] = max(scores.get(pid, 0.0), 0.5) + 0.3
+                # OCR text match: strongly boost photos whose recognized text
+                # contains a query token (documents, screenshots, signs).
+                for pid, txt in self._db.execute(
+                    "SELECT photo_id, text FROM photo_text WHERE user_id=? AND text != ''", (user_id,)
+                ):
+                    tl = (txt or "").lower()
+                    hits = sum(1 for t in tokens if t in tl)
+                    if hits:
+                        scores[pid] = max(scores.get(pid, 0.0), 0.6) + 0.2 * hits
             ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:limit]
             return [{"photoId": pid, "score": round(s, 4)} for pid, s in ranked]
 

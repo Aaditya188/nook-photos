@@ -74,16 +74,17 @@ STORE = None
 CLIP = None
 FACES = None
 PLACES = None
+OCR = None
 PIPE = None
 
 
 def _init():
-    global STORE, CLIP, FACES, PLACES, PIPE
+    global STORE, CLIP, FACES, PLACES, OCR, PIPE
     os.makedirs(INDEX_DIR, exist_ok=True)
     print(f"[nook-indexer] data={DATA_DIR} index={INDEX_DIR} port={PORT} faces={ENABLE_FACES}", flush=True)
     STORE = Store(os.path.join(INDEX_DIR, "ai-index.sqlite"))
-    CLIP, FACES, PLACES = load_models(enable_faces=ENABLE_FACES)
-    PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, poll_interval=POLL_SEC)
+    CLIP, FACES, PLACES, OCR = load_models(enable_faces=ENABLE_FACES)
+    PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, ocr=OCR, poll_interval=POLL_SEC)
     PIPE.start()
 
 
