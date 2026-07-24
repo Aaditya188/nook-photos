@@ -3,11 +3,11 @@
  * sessions and revoke them (revoking the current one signs out).
  */
 import { useEffect, useState, useCallback } from 'react';
-import { View, Pressable } from 'react-native';
-import { router, Stack } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, ScrollView } from 'react-native';
+import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNookClient } from '@nook/core';
-import { Screen, Text, Card, Divider, Button } from '@/components/ui';
+import { Text, Card, Divider, Button, ScreenHeader } from '@/components/ui';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 
@@ -35,15 +35,10 @@ export default function DevicesScreen() {
   }
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.sm, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title">Signed-in devices</Text>
-      </View>
-
+      <ScreenHeader title="Signed-in devices" />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {sessions === null ? (
           <Text variant="caption" color={t.colors.onSurfaceVariant} style={{ padding: t.spacing.lg }}>Loading…</Text>
@@ -66,6 +61,7 @@ export default function DevicesScreen() {
           ))
         )}
       </Card>
-    </Screen>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

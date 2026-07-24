@@ -3,11 +3,11 @@
  * and lets an admin set the server name, max storage (GB), and public URL.
  */
 import { useEffect, useState } from 'react';
-import { View, Pressable } from 'react-native';
-import { router, Stack } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, ScrollView } from 'react-native';
+import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNookClient, useStatus, humanBytes } from '@nook/core';
-import { Screen, Text, Card, Button, TextField } from '@/components/ui';
+import { Text, Card, Button, TextField, ScreenHeader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 const GB = 1024 * 1024 * 1024;
@@ -62,15 +62,10 @@ export default function ServerSettingsScreen() {
   }
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.sm, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title">Server</Text>
-      </View>
-
+      <ScreenHeader title="Server" />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
       <Card style={{ gap: t.spacing.sm }}>
         <Text variant="titleSmall">{status.data?.server?.name || 'nook.local'}</Text>
         {status.data?.server?.version ? (
@@ -110,6 +105,7 @@ export default function ServerSettingsScreen() {
       </View>
 
       <Button title={saved ? 'Saved' : 'Save server settings'} loading={busy} onPress={save} />
-    </Screen>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

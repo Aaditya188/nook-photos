@@ -3,11 +3,12 @@
  * accounts, add a user (name / username / password), delete non-self users.
  */
 import { useState } from 'react';
-import { View, Pressable, Alert } from 'react-native';
-import { router, Stack } from 'expo-router';
+import { View, Pressable, Alert, ScrollView } from 'react-native';
+import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useUsers, useCreateUser, useDeleteUser, NookApiError } from '@nook/core';
-import { Screen, Text, Card, Button, TextField, Divider } from '@/components/ui';
+import { Text, Card, Button, TextField, Divider, ScreenHeader } from '@/components/ui';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 
@@ -49,16 +50,10 @@ export default function UsersScreen() {
   }
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.sm, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title" style={{ flex: 1 }}>Users</Text>
-        {!adding ? <Button title="Add" onPress={() => setAdding(true)} /> : null}
-      </View>
-
+      <ScreenHeader title="Users" right={!adding ? <Button title="Add" onPress={() => setAdding(true)} /> : undefined} />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
       {adding ? (
         <Card style={{ gap: t.spacing.md }}>
           <Text variant="titleSmall">Add user</Text>
@@ -96,6 +91,7 @@ export default function UsersScreen() {
         ))}
         {users.isLoading ? <Text variant="caption" color={t.colors.onSurfaceVariant} style={{ padding: t.spacing.lg }}>Loading…</Text> : null}
       </Card>
-    </Screen>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

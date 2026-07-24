@@ -4,11 +4,12 @@
  * Uses the account's totpEnabled flag and the client's totp endpoints.
  */
 import { useEffect, useState } from 'react';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
 import { router, Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNookClient, useAccount } from '@nook/core';
-import { Screen, Text, Card, Button, TextField } from '@/components/ui';
+import { Text, Card, Button, TextField, ScreenHeader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export default function SecurityScreen() {
@@ -73,15 +74,10 @@ export default function SecurityScreen() {
   }
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.sm, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title">Security</Text>
-      </View>
-
+      <ScreenHeader title="Security" />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
       <Card style={{ gap: t.spacing.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md }}>
           <MaterialIcons name={on ? 'verified-user' : 'security'} size={22} color={on ? t.colors.primaryContainer : t.colors.onSurfaceVariant} />
@@ -125,6 +121,7 @@ export default function SecurityScreen() {
           <MaterialIcons name="chevron-right" size={22} color={t.colors.outline} />
         </Pressable>
       </Card>
-    </Screen>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
