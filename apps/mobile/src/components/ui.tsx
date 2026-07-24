@@ -164,6 +164,8 @@ export function Card({ style, ...rest }: ViewProps) {
         {
           backgroundColor: t.colors.surfaceContainerLow,
           borderRadius: t.radius.lg,
+          borderWidth: 0.5,
+          borderColor: t.colors.outlineVariant,
           padding: t.spacing.lg,
         },
         style,
