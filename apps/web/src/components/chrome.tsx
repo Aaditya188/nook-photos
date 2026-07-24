@@ -344,7 +344,7 @@ export const PersonTile = memo(function PersonTile({
   );
   return (
     <button ref={ref} type="button" className="person-tile" onClick={onClick}>
-      <div className="person-av">{src ? <img alt="" draggable={false} src={src} /> : null}</div>
+      <div className="person-av">{src ? <img alt="" draggable={false} src={src} className="loaded" /> : null}</div>
       <div className={'person-name' + (person.name ? '' : ' unnamed')}>
         {person.name || 'Add Name'}
       </div>
