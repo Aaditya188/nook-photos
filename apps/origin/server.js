@@ -142,6 +142,7 @@ function bootFs() {
   for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR]) {
     fs.mkdirSync(dir, { recursive: true });
   }
+  sweepStaleTemps();
   if (fs.existsSync(DB_PATH)) {
     try {
       const raw = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
@@ -158,18 +159,54 @@ function bootFs() {
   TOTAL_BYTES = detectTotalBytes(DATA_DIR);
 }
 
+/**
+ * Rename `tmp` over `dest`, retrying briefly. On Windows the rename throws
+ * EPERM/EACCES when the destination is momentarily locked (a concurrent reader
+ * or antivirus scan); a few short retries clear almost all of those. If it
+ * ultimately fails we delete the temp so a failed write never leaves a stray
+ * `*.tmp-xxxx` file piling up in the data dir.
+ */
+function renameOverAtomic(tmp, dest) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(tmp, dest);
+      return;
+    } catch (e) {
+      if (attempt >= 5) {
+        try { fs.rmSync(tmp, { force: true }); } catch {}
+        throw e;
+      }
+      const until = Date.now() + 30; // brief spin to let the lock clear
+      while (Date.now() < until) { /* wait */ }
+    }
+  }
+}
+
 /** Atomic persist: write a temp file in the same dir, then rename over db.json. */
 function persist() {
   const tmp = DB_PATH + '.tmp-' + crypto.randomBytes(4).toString('hex');
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_PATH);
+  renameOverAtomic(tmp, DB_PATH);
 }
 
 /** Atomic binary write (temp + rename) so a crashed upload never leaves a torn file. */
 function writeFileAtomic(dest, buf) {
   const tmp = dest + '.tmp-' + crypto.randomBytes(4).toString('hex');
   fs.writeFileSync(tmp, buf);
-  fs.renameSync(tmp, dest);
+  renameOverAtomic(tmp, dest);
+}
+
+/** Remove any orphaned db.json.tmp-* left by a past crash/lock (boot hygiene). */
+function sweepStaleTemps() {
+  try {
+    const dir = path.dirname(DB_PATH);
+    const base = path.basename(DB_PATH) + '.tmp-';
+    for (const name of fs.readdirSync(dir)) {
+      if (name.startsWith(base)) {
+        try { fs.rmSync(path.join(dir, name), { force: true }); } catch {}
+      }
+    }
+  } catch {}
 }
 
 function genId(prefix, existsFn) {
