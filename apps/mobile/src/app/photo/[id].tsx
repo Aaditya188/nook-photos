@@ -93,6 +93,9 @@ export default function PhotoViewer() {
                 onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
               />
               <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />
+              {current.mediaType !== 'video' ? (
+                <IconBtn name="tune" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: current.id } })} />
+              ) : null}
               <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
               <IconBtn
                 name="delete-outline"
