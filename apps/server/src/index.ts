@@ -32,6 +32,14 @@ import {
 } from './shares.js';
 import { listSnapshots, startSnapshotSchedule, takeSnapshot } from './snapshots.js';
 
+// Bound sharp's resource use so a burst of thumbnail requests can't balloon RAM
+// or spawn a thread per core per image. Most requests hit the on-disk thumb
+// cache and never touch sharp at all; when they do, a small operation cache and
+// a modest per-pipeline thread cap keep memory flat and leave cores free to
+// service other requests concurrently.
+sharpLib.cache({ memory: 64, files: 0, items: 100 });
+sharpLib.concurrency(2);
+
 // The web dashboard served at /: the built React app (apps/web/dist) by
 // default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
 const APPS_DIR = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');

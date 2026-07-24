@@ -6,15 +6,34 @@ are unavailable, that capability is simply disabled and the rest keeps working.
 import os
 import numpy as np
 
+# Conservative CUDA execution-provider options. onnxruntime's defaults
+# (EXHAUSTIVE cuDNN algo search + max convolution workspace + a power-of-two
+# growing arena) inflate GPU memory and lengthen session init. Heuristic algo
+# search, no max workspace, and an arena that grows exactly as requested cut the
+# GPU footprint substantially with negligible inference-speed cost — important on
+# a shared 8 GB laptop GPU. All values must be strings for ORT.
+CUDA_OPTS = {
+    "cudnn_conv_algo_search": "HEURISTIC",
+    "cudnn_conv_use_max_workspace": "0",
+    "arena_extend_strategy": "kSameAsRequested",
+}
+
 
 class Clip:
-    """OpenCLIP ViT-B-32 via fastembed (ONNX/CPU). Image + text land in the same
+    """OpenCLIP ViT-B-32 via fastembed (ONNX/CUDA). Image + text land in the same
     512-d space, so cosine similarity is a semantic match."""
 
     def __init__(self):
         from fastembed import ImageEmbedding, TextEmbedding
-        self.img = ImageEmbedding("Qdrant/clip-ViT-B-32-vision", cuda=True)
-        self.txt = TextEmbedding("Qdrant/clip-ViT-B-32-text", cuda=True)
+        providers = [("CUDAExecutionProvider", CUDA_OPTS), "CPUExecutionProvider"]
+        try:
+            self.img = ImageEmbedding("Qdrant/clip-ViT-B-32-vision", providers=providers)
+            self.txt = TextEmbedding("Qdrant/clip-ViT-B-32-text", providers=providers)
+        except Exception as e:
+            # Older/newer fastembed that rejects the tuple form → plain CUDA path.
+            print("[models] CLIP tuned providers unavailable, using default CUDA:", e, flush=True)
+            self.img = ImageEmbedding("Qdrant/clip-ViT-B-32-vision", cuda=True)
+            self.txt = TextEmbedding("Qdrant/clip-ViT-B-32-text", cuda=True)
         self.dim = 512
 
     @staticmethod
@@ -41,11 +60,20 @@ class Faces:
 
     def __init__(self, det_size: int = 640):
         from insightface.app import FaceAnalysis
-        self.app = FaceAnalysis(
-            name="buffalo_l",
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-            allowed_modules=["detection", "recognition"],
-        )
+        try:
+            self.app = FaceAnalysis(
+                name="buffalo_l",
+                providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+                provider_options=[CUDA_OPTS, {}],
+                allowed_modules=["detection", "recognition"],
+            )
+        except Exception as e:
+            print("[models] faces tuned providers unavailable, using default CUDA:", e, flush=True)
+            self.app = FaceAnalysis(
+                name="buffalo_l",
+                providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+                allowed_modules=["detection", "recognition"],
+            )
         self.app.prepare(ctx_id=0, det_size=(det_size, det_size))
 
     def detect(self, bgr_image) -> list:
