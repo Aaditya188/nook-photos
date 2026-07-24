@@ -1208,6 +1208,20 @@ button:focus-visible {
 }
 
 .content .toolbar { margin: 0; }
+/* The search bar's solid background bleeds up to meet the (translucent) topbar,
+   covering the content's 18px top padding so grid images can never show through
+   the seam between them — robust even when the measured --topbar-h is a hair
+   off from the real topbar height. */
+.content .toolbar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 28px;
+  background: var(--bg);
+  pointer-events: none;
+}
 
 /* ---------------------------------------------------------- view header */
 
