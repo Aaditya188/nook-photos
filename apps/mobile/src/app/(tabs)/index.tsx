@@ -69,7 +69,8 @@ export default function LibraryScreen() {
       {!selectMode ? (
         <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
           <QuickLink icon="luggage" label="Trips" onPress={() => router.push('/trips')} />
-          <QuickLink icon="people" label="People & Places" onPress={() => router.push('/people')} />
+          <QuickLink icon="map" label="Map" onPress={() => router.push('/map')} />
+          <QuickLink icon="people" label="People" onPress={() => router.push('/people')} />
         </View>
       ) : null}
       {!selectMode ? <MemoriesRail /> : null}
