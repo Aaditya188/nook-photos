@@ -9,6 +9,7 @@ import { View, Pressable, ScrollView, PanResponder, LayoutChangeEvent, ActivityI
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useNookClient } from '@nook/core';
 import { Text } from '@/components/ui';
 import { useTheme } from '@/theme';
@@ -41,8 +42,14 @@ const FILTERS: { name: string; adjust: Partial<Adjust> }[] = [
   { name: 'Dream', adjust: { brightness: 106, saturation: 112, highlights: 16 } },
 ];
 
-function buildRecipe(a: Adjust): Record<string, number> {
-  const r: Record<string, number> = {};
+type Transform = { rotate: number; flipH: boolean; flipV: boolean };
+const NO_TRANSFORM: Transform = { rotate: 0, flipH: false, flipV: false };
+
+function buildRecipe(a: Adjust, tf: Transform): Record<string, number | boolean> {
+  const r: Record<string, number | boolean> = {};
+  if (tf.rotate) r.rotate = tf.rotate;
+  if (tf.flipH) r.flipH = true;
+  if (tf.flipV) r.flipV = true;
   if (a.brightness !== 100) r.brightness = a.brightness / 100;
   if (a.contrast !== 100) r.contrast = a.contrast / 100;
   if (a.saturation !== 100) r.saturation = a.saturation / 100;
@@ -58,8 +65,9 @@ export default function EditScreen() {
   const t = useTheme();
   const client = useNookClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [tab, setTab] = useState<'adjust' | 'filters'>('adjust');
+  const [tab, setTab] = useState<'crop' | 'adjust' | 'filters'>('adjust');
   const [adjust, setAdjust] = useState<Adjust>(NEUTRAL);
+  const [transform, setTransform] = useState<Transform>(NO_TRANSFORM);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -67,7 +75,9 @@ export default function EditScreen() {
   const seq = useRef(0);
 
   const baseUri = id ? client.thumbUrl(id, 1024) : '';
-  const dirty = JSON.stringify(adjust) !== JSON.stringify(NEUTRAL);
+  const dirty =
+    JSON.stringify(adjust) !== JSON.stringify(NEUTRAL) ||
+    JSON.stringify(transform) !== JSON.stringify(NO_TRANSFORM);
 
   // Load any existing recipe.
   useEffect(() => {
@@ -78,6 +88,7 @@ export default function EditScreen() {
         if (!j?.edited || !j.recipe) return;
         setHadEdit(true);
         const r = j.recipe;
+        setTransform({ rotate: r.rotate ?? 0, flipH: !!r.flipH, flipV: !!r.flipV });
         setAdjust({
           brightness: Math.round((r.brightness ?? 1) * 100),
           contrast: Math.round((r.contrast ?? 1) * 100),
@@ -103,7 +114,7 @@ export default function EditScreen() {
         const res = await fetch(`${client.baseUrl}/api/photos/${id}/edit/preview`, {
           method: 'POST',
           headers: { ...client.authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildRecipe(adjust)),
+          body: JSON.stringify(buildRecipe(adjust, transform)),
         });
         if (!res.ok || mine !== seq.current) return;
         const blob = await res.blob();
@@ -115,7 +126,7 @@ export default function EditScreen() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [id, adjust, dirty, client]);
+  }, [id, adjust, transform, dirty, client]);
 
   const save = useCallback(async () => {
     if (!id) return;
@@ -124,13 +135,13 @@ export default function EditScreen() {
       await fetch(`${client.baseUrl}/api/photos/${id}/edit`, {
         method: 'PUT',
         headers: { ...client.authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRecipe(adjust)),
+        body: JSON.stringify(buildRecipe(adjust, transform)),
       });
       router.back();
     } catch {
       setBusy(false);
     }
-  }, [id, adjust, client]);
+  }, [id, adjust, transform, client]);
 
   const revert = useCallback(async () => {
     if (!id) return;
@@ -158,7 +169,7 @@ export default function EditScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: t.spacing.md }}>
         <Pressable onPress={() => router.back()} hitSlop={8}><Text variant="body" color="#fff">Cancel</Text></Pressable>
         <View style={{ flexDirection: 'row', gap: t.spacing.lg }}>
-          {(['adjust', 'filters'] as const).map((tb) => (
+          {(['crop', 'adjust', 'filters'] as const).map((tb) => (
             <Pressable key={tb} onPress={() => setTab(tb)}>
               <Text variant="titleSmall" color={tab === tb ? t.colors.primaryContainer : 'rgba(255,255,255,0.6)'} style={{ textTransform: 'capitalize' }}>{tb}</Text>
             </Pressable>
@@ -181,7 +192,19 @@ export default function EditScreen() {
 
       {/* Controls */}
       <View style={{ maxHeight: 320, paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm }}>
-        {tab === 'adjust' ? (
+        {tab === 'crop' ? (
+          <View style={{ paddingVertical: t.spacing.lg, gap: t.spacing.lg }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+              <TransformBtn icon="rotate-left" label="Rotate left" onPress={() => setTransform((tf) => ({ ...tf, rotate: (tf.rotate + 270) % 360 }))} />
+              <TransformBtn icon="rotate-right" label="Rotate right" onPress={() => setTransform((tf) => ({ ...tf, rotate: (tf.rotate + 90) % 360 }))} />
+              <TransformBtn icon="flip" label="Flip H" active={transform.flipH} onPress={() => setTransform((tf) => ({ ...tf, flipH: !tf.flipH }))} />
+              <TransformBtn icon="flip" label="Flip V" active={transform.flipV} rotate90 onPress={() => setTransform((tf) => ({ ...tf, flipV: !tf.flipV }))} />
+            </View>
+            <Text variant="caption" color="rgba(255,255,255,0.5)" style={{ textAlign: 'center' }}>
+              Rotate in 90° steps or flip. Freeform crop is coming soon.
+            </Text>
+          </View>
+        ) : tab === 'adjust' ? (
           <ScrollView>
             {SLIDERS.map((s) => (
               <EditSlider
@@ -195,7 +218,7 @@ export default function EditScreen() {
               />
             ))}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: t.spacing.md }}>
-              <Pressable onPress={() => setAdjust(NEUTRAL)} disabled={!dirty}>
+              <Pressable onPress={() => { setAdjust(NEUTRAL); setTransform(NO_TRANSFORM); }} disabled={!dirty}>
                 <Text variant="body" color={dirty ? '#fff' : 'rgba(255,255,255,0.4)'}>Reset all</Text>
               </Pressable>
               {hadEdit ? (
@@ -228,6 +251,25 @@ export default function EditScreen() {
 }
 
 /** Pure-JS slider (no native dep): a track with a draggable thumb. */
+/** A transform action button in the Crop tab (rotate / flip). */
+function TransformBtn({ icon, label, onPress, active, rotate90 }: {
+  icon: keyof typeof MaterialIcons.glyphMap; label: string; onPress: () => void; active?: boolean; rotate90?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={onPress} style={{ alignItems: 'center', gap: 8 }}>
+      <View
+        style={{
+          width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: active ? t.colors.primaryContainer : 'rgba(255,255,255,0.08)',
+        }}>
+        <MaterialIcons name={icon} size={24} color={active ? t.colors.onPrimary : '#fff'} style={rotate90 ? { transform: [{ rotate: '90deg' }] } : undefined} />
+      </View>
+      <Text variant="caption" color="rgba(255,255,255,0.7)">{label}</Text>
+    </Pressable>
+  );
+}
+
 function EditSlider({ label, value, min, max, center, onChange }: {
   label: string; value: number; min: number; max: number; center: number; onChange: (v: number) => void;
 }) {
