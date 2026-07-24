@@ -267,12 +267,13 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-function issueToken(userId, label) {
+function issueToken(userId, label, ua) {
   const token = crypto.randomBytes(TOKEN_BYTES).toString('hex');
   db.tokens[token] = {
     userId: userId,
     createdAt: new Date().toISOString(),
     label: label ? String(label).slice(0, 80) : '',
+    ua: ua ? String(ua).slice(0, 200) : '',
   };
   return token;
 }
@@ -282,31 +283,34 @@ function sessionIdOf(token) {
   return crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
 }
 
-/** A short human label from a User-Agent header. */
-function deviceLabelFrom(req) {
+/**
+ * A friendly device label like "Aaditya iPhone 2" — the owner's first name, the
+ * device type from the User-Agent, and a per-(user,type) sequence number so
+ * repeat devices don't collide.
+ */
+function deviceLabelFor(user, req) {
   const ua = String(req.headers['user-agent'] || '');
-  if (/nook-mobile|expo|okhttp|cfnetwork|darwin/i.test(ua) && !/mozilla/i.test(ua)) return 'Mobile app';
-  const os = /windows/i.test(ua)
-    ? 'Windows'
-    : /iphone|ios/i.test(ua)
+  const base = /ipad/i.test(ua)
+    ? 'iPad'
+    : /iphone|cfnetwork|darwin/i.test(ua)
       ? 'iPhone'
-      : /android/i.test(ua)
+      : /android|okhttp|dalvik/i.test(ua)
         ? 'Android'
-        : /mac os/i.test(ua)
-          ? 'Mac'
-          : /linux/i.test(ua)
-            ? 'Linux'
-            : '';
-  const browser = /edg\//i.test(ua)
-    ? 'Edge'
-    : /chrome\//i.test(ua)
-      ? 'Chrome'
-      : /safari\//i.test(ua) && !/chrome/i.test(ua)
-        ? 'Safari'
-        : /firefox\//i.test(ua)
-          ? 'Firefox'
-          : '';
-  return [browser, os].filter(Boolean).join(' on ') || (ua ? ua.slice(0, 40) : 'Unknown device');
+        : /windows/i.test(ua)
+          ? 'Windows PC'
+          : /mac os x|macintosh/i.test(ua)
+            ? 'MacBook'
+            : /linux/i.test(ua)
+              ? 'Linux PC'
+              : 'Device';
+  const first = String((user && (user.displayName || user.username)) || 'Nook').trim().split(/\s+/)[0];
+  const prefix = first + ' ' + base;
+  let n = 0;
+  for (const t in db.tokens) {
+    const rec = db.tokens[t];
+    if (rec && rec.userId === (user && user.id) && typeof rec.label === 'string' && rec.label.indexOf(prefix) === 0) n++;
+  }
+  return (prefix + ' ' + (n + 1)).slice(0, 80);
 }
 
 // ---------------------------------------------------------------------------
@@ -837,7 +841,7 @@ async function handleSetup(req, res) {
     throw httpError(400, 'displayName (non-empty string) is required');
   }
   const user = makeUser(body, 'admin');
-  const token = issueToken(user.id, deviceLabelFrom(req));
+  const token = issueToken(user.id, deviceLabelFor(user, req), req.headers["user-agent"]);
   persist();
   sendJson(res, 200, { token: token, user: toPublicUser(user) });
 }
@@ -860,7 +864,7 @@ async function handleLogin(req, res) {
       return sendJson(res, 401, { error: 'invalid two-factor code', totpRequired: true });
     }
   }
-  const token = issueToken(user.id, deviceLabelFrom(req));
+  const token = issueToken(user.id, deviceLabelFor(user, req), req.headers["user-agent"]);
   persist();
   sendJson(res, 200, { token: token, user: toPublicUser(user) });
 }
@@ -896,6 +900,19 @@ function handleRevokeSession(res, user, sid) {
     }
   }
   throw httpError(404, 'session not found');
+}
+
+/** Revoke every session for this user except the one making the request. */
+function handleRevokeOtherSessions(res, user, currentToken) {
+  let removed = 0;
+  for (const tok of Object.keys(db.tokens)) {
+    if (db.tokens[tok].userId === user.id && tok !== currentToken) {
+      delete db.tokens[tok];
+      removed += 1;
+    }
+  }
+  persist();
+  sendJson(res, 200, { ok: true, removed: removed });
 }
 
 async function handleTotpSetup(req, res, user) {
@@ -1584,6 +1601,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/account' && req.method === 'PATCH') return handlePatchAccount(req, res, user);
   if (pathname === '/api/sessions' && req.method === 'GET') return handleListSessions(res, user, token);
   const sessMatch = /^\/api\/sessions\/([a-f0-9]{12})$/.exec(pathname);
+  if (pathname === '/api/sessions' && req.method === 'DELETE') return handleRevokeOtherSessions(res, user, token);
   if (sessMatch && req.method === 'DELETE') return handleRevokeSession(res, user, sessMatch[1]);
   if (pathname === '/api/account/2fa/setup' && req.method === 'POST') return handleTotpSetup(req, res, user);
   if (pathname === '/api/account/2fa/verify' && req.method === 'POST') return handleTotpVerify(req, res, user);

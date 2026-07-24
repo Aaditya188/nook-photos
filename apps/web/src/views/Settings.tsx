@@ -350,6 +350,7 @@ function TotpSetupCard({ close, onEnabled }: { close: () => void; onEnabled: () 
 function DevicesSection() {
   const { client, signOutLocal } = useAuth();
   const toast = useToast();
+  const modals = useModals();
   const [sessions, setSessions] = useState<
     { id: string; createdAt: string; label: string; current: boolean }[] | null
   >(null);
@@ -360,9 +361,35 @@ function DevicesSection() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, [client]);
 
+  const signOutOthers = async () => {
+    const ok = await modals.confirm({
+      title: 'Sign out all other devices?',
+      body: 'Every session except this one is revoked. Those devices will need to sign in again.',
+      confirm: 'Sign out others',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const { removed } = await client.revokeOtherSessions();
+      toast(removed + (removed === 1 ? ' device signed out' : ' devices signed out'));
+      reload();
+    } catch {
+      toast('Could not sign out other devices');
+    }
+  };
+
+  const hasOthers = (sessions ?? []).some((s) => !s.current);
+
   return (
     <section className="set-section">
-      <h2 className="set-h">Signed-in devices</h2>
+      <div className="set-section-head">
+        <h2 className="set-h">Signed-in devices</h2>
+        {hasOthers ? (
+          <button type="button" className="m-btn danger-text" onClick={signOutOthers}>
+            Sign out others
+          </button>
+        ) : null}
+      </div>
       <div className="set-list">
         {sessions === null ? (
           <div className="set-note">Loading…</div>

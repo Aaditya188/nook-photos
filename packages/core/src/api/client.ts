@@ -289,6 +289,9 @@ export class NookClient {
       sessions: { id: string; createdAt: string; label: string; current: boolean }[];
     }>('GET', '/api/sessions');
   }
+  revokeOtherSessions() {
+    return this.request<{ ok: true; removed: number }>('DELETE', '/api/sessions');
+  }
   revokeSession(id: string) {
     return this.request<{ ok: true }>('DELETE', `/api/sessions/${id}`);
   }

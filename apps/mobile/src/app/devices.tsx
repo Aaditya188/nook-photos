@@ -3,7 +3,7 @@
  * sessions and revoke them (revoking the current one signs out).
  */
 import { useEffect, useState, useCallback } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Pressable, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNookClient } from '@nook/core';
@@ -34,10 +34,37 @@ export default function DevicesScreen() {
     }
   }
 
+  function signOutOthers() {
+    Alert.alert('Sign out all other devices?', 'Every session except this one is revoked.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out others',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await client.revokeOtherSessions();
+            reload();
+          } catch {
+            /* ignore */
+          }
+        },
+      },
+    ]);
+  }
+
+  const hasOthers = (sessions ?? []).some((s) => !s.current);
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Signed-in devices" />
+      <ScreenHeader
+        title="Signed-in devices"
+        right={hasOthers ? (
+          <Pressable onPress={signOutOthers} hitSlop={8}>
+            <Text variant="label" color={t.colors.error}>Sign out others</Text>
+          </Pressable>
+        ) : undefined}
+      />
       <ScrollView contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {sessions === null ? (
