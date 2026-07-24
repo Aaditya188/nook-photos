@@ -35,7 +35,7 @@ const THEMES: { key: ThemePref; label: string }[] = [
 ];
 
 export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, mediaUrl } = useAuth();
   const { pref, set } = useTheme();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
@@ -106,7 +106,9 @@ export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }) {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span className="pm-avatar">{initials(name)}</span>
+        <span className="pm-avatar">
+          {user?.avatarUrl ? <img src={mediaUrl(user.avatarUrl)} alt="" /> : initials(name)}
+        </span>
         <span className="pm-name">{name}</span>
         <svg className="pm-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path d="M7 14l5-5 5 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
