@@ -80,7 +80,7 @@ export function ShareCard({ albumId, close }: { albumId: string; close: () => vo
   };
 
   return (
-    <div className="m-wrap">
+    <div className="m-wrap share-modal">
       <div className="m-title">Share album</div>
 
       <PeopleShare albumId={albumId} />

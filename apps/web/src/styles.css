@@ -1496,6 +1496,11 @@ button:focus-visible {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
   max-height: 86vh;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+/* The share dialog needs more room for the people add-row + role dropdown. */
+.modal-card:has(.share-modal) {
+  max-width: 520px;
 }
 .m-wrap { padding: 22px; }
 .m-title { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; }
@@ -3897,8 +3902,10 @@ h3.day-header {
   margin: 16px 0 8px;
 }
 
-.share-add-row { display: flex; gap: 8px; align-items: stretch; }
-.share-add-row .m-input { flex: 1; margin: 0; }
+.share-add-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+/* min-width:0 lets the input shrink inside the flex row instead of shoving the
+   role dropdown + Add button off the edge (the cause of the horizontal scroll). */
+.share-add-row .m-input { flex: 1 1 180px; min-width: 0; margin: 0; }
 .share-lvl {
   flex: none;
   background: var(--input-bg);
@@ -3906,8 +3913,10 @@ h3.day-header {
   border-radius: 10px;
   color: var(--text);
   font-size: 13px;
-  padding: 0 8px;
+  padding: 0 10px;
+  min-height: 44px;
 }
+.share-add-row .m-btn { flex: none; }
 
 .share-grants { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 
