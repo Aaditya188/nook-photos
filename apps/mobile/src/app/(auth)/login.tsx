@@ -28,9 +28,11 @@ export default function LoginScreen() {
     try {
       if (isSetup) {
         await setup({ username: username.trim(), password, displayName: displayName.trim() || username.trim(), email: email.trim() || undefined });
-      } else {
-        await login(username.trim(), password);
+        // First account just became the admin — show the onboarding guide.
+        router.replace('/welcome');
+        return;
       }
+      await login(username.trim(), password);
       router.replace('/(tabs)');
     } catch (e) {
       setError(e instanceof NookApiError ? e.message : e instanceof Error ? e.message : 'Sign in failed');

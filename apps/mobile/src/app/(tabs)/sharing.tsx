@@ -1,131 +1,61 @@
-import { useState } from 'react';
-import { View, Pressable, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
+/**
+ * Sharing hub — pick an album to manage who can see it (people grants) and its
+ * guest link. User management moved to Profile › Admin › Users.
+ */
+import { View, Pressable, FlatList } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { NookApiError, useUsers, useCreateUser, useDeleteUser, type User } from '@nook/core';
-import { Text, Card, Button, TextField, Divider } from '@/components/ui';
-import { useAuth } from '@/store/auth';
+import { useAlbums } from '@nook/core';
+import { RemoteThumb } from '@/components/RemoteImage';
+import { Text, BrandLoader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export default function SharingScreen() {
   const t = useTheme();
-  const me = useAuth((s) => s.user);
-  const users = useUsers();
-  const createUser = useCreateUser();
-  const deleteUser = useDeleteUser();
-  const [adding, setAdding] = useState(false);
-
-  const isAdmin = me?.role === 'admin';
-
-  if (!isAdmin) {
-    return (
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
-        <View style={{ padding: t.spacing.lg }}>
-          <Text variant="headline">Sharing</Text>
-        </View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing.sm, padding: 24 }}>
-          <MaterialIcons name="group" size={44} color={t.colors.outline} />
-          <Text variant="body" color={t.colors.onSurfaceVariant} style={{ textAlign: 'center' }}>
-            Only an admin can manage users on this server.
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  function remove(u: User) {
-    Alert.alert('Remove user?', `Delete ${u.displayName || u.username} and all their photos?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteUser.mutate(u.id) },
-    ]);
-  }
+  const albums = useAlbums();
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.xl, paddingBottom: t.spacing.xxl }}>
+      <View style={{ padding: t.spacing.lg, gap: 4 }}>
         <Text variant="headline">Sharing</Text>
-        <Text variant="body" color={t.colors.onSurfaceVariant} style={{ marginTop: -12 }}>
-          Manage who has access to this Nook server.
-        </Text>
-
-        {adding ? (
-          <AddUserForm
-            busy={createUser.isPending}
-            onCancel={() => setAdding(false)}
-            onSubmit={async (input) => {
-              try {
-                await createUser.mutateAsync(input);
-                setAdding(false);
-              } catch (e) {
-                Alert.alert('Could not add user', e instanceof NookApiError ? e.message : 'Failed');
-              }
-            }}
-          />
-        ) : (
-          <Button title="Add User" onPress={() => setAdding(true)} />
-        )}
-
-        <View style={{ gap: t.spacing.md }}>
-          <Text variant="label" color={t.colors.onSurfaceVariant}>PEOPLE WITH ACCESS</Text>
-          {users.isLoading ? (
-            <ActivityIndicator color={t.colors.primaryContainer} />
-          ) : (
-            <Card style={{ padding: 0, overflow: 'hidden' }}>
-              {(users.data ?? []).map((u, i) => (
-                <View key={u.id}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, padding: t.spacing.lg }}>
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.colors.secondaryContainer, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text color={t.colors.onSecondary}>{(u.displayName || u.username).slice(0, 1).toUpperCase()}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text variant="body">{u.displayName || u.username}{u.id === me?.id ? ' (you)' : ''}</Text>
-                      <Text variant="caption" color={t.colors.onSurfaceVariant}>{u.role === 'admin' ? 'Admin' : 'Member'} · @{u.username}</Text>
-                    </View>
-                    {u.id !== me?.id ? (
-                      <Pressable onPress={() => remove(u)} hitSlop={8}>
-                        <MaterialIcons name="remove-circle-outline" size={22} color={t.colors.error} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  {i < (users.data ?? []).length - 1 ? <Divider /> : null}
-                </View>
-              ))}
-            </Card>
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function AddUserForm({
-  busy,
-  onSubmit,
-  onCancel,
-}: {
-  busy: boolean;
-  onSubmit: (input: { username: string; password: string; displayName: string; email?: string }) => void;
-  onCancel: () => void;
-}) {
-  const t = useTheme();
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
-  return (
-    <Card style={{ gap: t.spacing.md }}>
-      <Text variant="titleSmall">New user</Text>
-      <TextField label="USERNAME" value={username} onChangeText={setUsername} autoCapitalize="none" />
-      <TextField label="DISPLAY NAME" value={displayName} onChangeText={setDisplayName} />
-      <TextField label="PASSWORD" value={password} onChangeText={setPassword} secureTextEntry />
-      <View style={{ flexDirection: 'row', gap: t.spacing.md }}>
-        <Button title="Cancel" variant="ghost" style={{ flex: 1 }} onPress={onCancel} />
-        <Button
-          title="Add"
-          loading={busy}
-          style={{ flex: 1 }}
-          onPress={() => onSubmit({ username: username.trim(), password, displayName: displayName.trim() || username.trim() })}
-        />
+        <Text variant="body" color={t.colors.onSurfaceVariant}>Choose an album to share with people or a guest link.</Text>
       </View>
-    </Card>
+
+      {albums.isLoading ? (
+        <BrandLoader label="Loading albums…" />
+      ) : (albums.data ?? []).length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing.md, padding: t.spacing.xl }}>
+          <MaterialIcons name="folder-shared" size={44} color={t.colors.outline} />
+          <Text variant="body" color={t.colors.onSurfaceVariant} style={{ textAlign: 'center' }}>
+            No albums yet. Create an album (from a photo's Add-to-album) and it will show up here to share.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={albums.data ?? []}
+          keyExtractor={(a) => a.id}
+          contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.md, paddingBottom: t.spacing.xxl }}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => router.push({ pathname: '/album-share/[id]', params: { id: item.id } })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, padding: t.spacing.sm, borderRadius: t.radius.lg, backgroundColor: t.colors.surfaceContainer }}>
+              {item.coverPhotoId ? (
+                <RemoteThumb photoId={item.coverPhotoId} displaySize={56} style={{ width: 56, height: 56, borderRadius: t.radius.md }} />
+              ) : (
+                <View style={{ width: 56, height: 56, borderRadius: t.radius.md, backgroundColor: t.colors.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center' }}>
+                  <MaterialIcons name="photo-album" size={24} color={t.colors.onSurfaceVariant} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text variant="body">{item.name}</Text>
+                <Text variant="caption" color={t.colors.onSurfaceVariant}>{item.photoCount} photos</Text>
+              </View>
+              <MaterialIcons name="ios-share" size={22} color={t.colors.primaryContainer} />
+            </Pressable>
+          )}
+        />
+      )}
+    </SafeAreaView>
   );
 }
