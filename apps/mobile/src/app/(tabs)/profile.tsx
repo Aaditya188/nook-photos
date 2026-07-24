@@ -60,8 +60,25 @@ export default function ProfileScreen() {
           <AccountRow icon="badge" label="Edit Profile" onPress={() => router.push('/edit-profile')} />
           <Divider />
           <AccountRow icon="lock-outline" label="Change Password" onPress={() => router.push('/change-password')} />
+          <Divider />
+          <AccountRow icon="security" label="Security & Two-Factor" onPress={() => router.push('/security')} />
+          <Divider />
+          <AccountRow icon="devices" label="Signed-in Devices" onPress={() => router.push('/devices')} />
         </Card>
       </View>
+
+      {user?.role === 'admin' ? (
+        <View style={{ gap: t.spacing.sm }}>
+          <Text variant="label" color={t.colors.onSurfaceVariant}>
+            ADMIN
+          </Text>
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <AccountRow icon="group" label="Users" onPress={() => router.push('/users')} />
+            <Divider />
+            <AccountRow icon="dns" label="Server Settings" onPress={() => router.push('/server-settings')} />
+          </Card>
+        </View>
+      ) : null}
 
       <View style={{ gap: t.spacing.sm }}>
         <Text variant="label" color={t.colors.onSurfaceVariant}>
