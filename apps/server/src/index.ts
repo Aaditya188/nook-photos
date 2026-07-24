@@ -64,12 +64,18 @@ if (HAS_WEB) {
   // (e.g. Cloudflare in front of the tunnel) cache them for a year. An onSend
   // hook has the final say over the static plugin's default max-age=0.
   app.addHook('onSend', (req, reply, payload, done) => {
+    const p = req.url.split('?')[0] ?? '';
     if (req.url.startsWith('/assets/') || req.url.startsWith('/icons/')) {
       reply.header('Cache-Control', 'public, max-age=31536000, immutable');
-    } else if (String(reply.getHeader('content-type') ?? '').includes('text/html')) {
-      // The SPA shell names the hashed bundles, so it must never be cached hard —
-      // a stale index.html would keep pointing browsers (and the Cloudflare edge)
-      // at asset filenames that no longer exist after a rebuild.
+    } else if (
+      p === '/sw.js' ||
+      p === '/manifest.webmanifest' ||
+      String(reply.getHeader('content-type') ?? '').includes('text/html')
+    ) {
+      // The SPA shell names the hashed bundles, and the service worker gates all
+      // of them — so neither may be cached hard. A stale index.html or sw.js
+      // would keep pointing browsers (and the Cloudflare edge) at asset
+      // filenames that no longer exist after a rebuild.
       reply.header('Cache-Control', 'no-cache');
     }
     done(null, payload);

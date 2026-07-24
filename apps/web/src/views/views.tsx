@@ -6,6 +6,7 @@ import type { PhotoRecord } from '@nook/core';
 import { useAuth } from '../state/auth';
 import {
   useActions,
+  useAlbumPhotosQ,
   useAlbumsQ,
   useDeletedQ,
   useLibraryQ,

@@ -6,9 +6,16 @@
  *   shell opens even when the server is briefly unreachable.
  * - /api/* and media: never intercepted — auth, freshness, and Range
  *   streaming stay the server's business.
+ *
+ * Hard rule: never cache (or serve) an /assets/* response that came back as
+ * HTML. That only happens when the server answers a missing bundle with the
+ * SPA shell; caching it cache-first would pin the app to a broken bundle until
+ * storage is cleared. Bumping the cache version evicts any such poisoned entry.
  */
-const SHELL_CACHE = 'nook-shell-v1';
-const ASSET_CACHE = 'nook-assets-v1';
+const SHELL_CACHE = 'nook-shell-v2';
+const ASSET_CACHE = 'nook-assets-v2';
+
+const isHtml = (res) => (res.headers.get('content-type') || '').includes('text/html');
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -36,14 +43,16 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (url.pathname.startsWith('/api/')) return; // never touch the API/media
 
-  // Immutable static assets: cache-first.
+  // Immutable static assets: cache-first — but only ever cache/serve a real
+  // asset. An HTML body here means the bundle is missing and the server fell
+  // back to the SPA shell; bypass the cache so we never pin a broken build.
   if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/')) {
     event.respondWith(
       caches.open(ASSET_CACHE).then(async (cache) => {
         const hit = await cache.match(event.request);
-        if (hit) return hit;
+        if (hit && !isHtml(hit)) return hit;
         const res = await fetch(event.request);
-        if (res.ok) cache.put(event.request, res.clone());
+        if (res.ok && !isHtml(res)) cache.put(event.request, res.clone());
         return res;
       }),
     );

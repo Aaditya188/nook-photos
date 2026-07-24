@@ -31,7 +31,7 @@ export function SettingsView() {
   const { user } = useAuth();
   const active = (SECTIONS.some((s) => s.key === section) ? section : 'profile') as SectionKey;
 
-  const visible = SECTIONS.filter((s) => !s.adminOnly || user?.role === 'admin');
+  const visible = SECTIONS.filter((s) => !('adminOnly' in s) || user?.role === 'admin');
 
   return (
     <>
