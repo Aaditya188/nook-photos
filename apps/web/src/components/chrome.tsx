@@ -3,9 +3,9 @@
  * mini server card), ViewHead, EmptyState, cover/person tiles — same markup
  * and classnames as the vanilla dashboard.
  */
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import type { Person, StatusRecord } from '@nook/core';
+import { faceCrop, type Person, type StatusRecord } from '@nook/core';
 import { fmtBytes, fmtCount } from '../lib/format';
 import { ICON, SVG_BACK, Svg } from '../lib/icons';
 import { useLazyBlob } from './Tile';
@@ -337,14 +337,40 @@ export const PersonTile = memo(function PersonTile({
   onClick: () => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
+  // A larger source so the (often small) cropped face stays sharp in the tile.
   const { src } = useLazyBlob(
     ref,
-    'thumb:' + person.coverPhotoId + ':256',
-    '/api/photos/' + person.coverPhotoId + '/thumb?w=256',
+    'thumb:' + person.coverPhotoId + ':512',
+    '/api/photos/' + person.coverPhotoId + '/thumb?w=512',
   );
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  // Crop the tile to the cover photo's face instead of showing the whole photo.
+  const crop = person.coverFace && dims ? faceCrop(person.coverFace, dims.w, dims.h) : null;
+  const faceStyle: CSSProperties | undefined = crop
+    ? {
+        position: 'absolute',
+        width: crop.widthPct + '%',
+        height: crop.heightPct + '%',
+        left: crop.leftPct + '%',
+        top: crop.topPct + '%',
+        maxWidth: 'none',
+        objectFit: 'fill',
+      }
+    : undefined;
   return (
     <button ref={ref} type="button" className="person-tile" onClick={onClick}>
-      <div className="person-av">{src ? <img alt="" draggable={false} src={src} className="loaded" /> : null}</div>
+      <div className="person-av">
+        {src ? (
+          <img
+            alt=""
+            draggable={false}
+            src={src}
+            className="loaded"
+            style={faceStyle}
+            onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+          />
+        ) : null}
+      </div>
       <div className={'person-name' + (person.name ? '' : ' unnamed')}>
         {person.name || 'Add Name'}
       </div>

@@ -128,6 +128,9 @@ export interface Person {
   count: number;
   coverPhotoId: string;
   coverThumbUrl: string;
+  /** Cover photo's face box as fractions [x, y, w, h] (top-left origin), so
+   *  clients can crop the tile to the face instead of the whole photo. */
+  coverFace: [number, number, number, number] | null;
 }
 
 export interface Place {

@@ -3,9 +3,10 @@
  * request header (thumbs/originals are owner-only) and requests a size-bucketed
  * thumbnail so the grid only ever fetches the pixels it shows.
  */
+import { useState } from 'react';
 import { Image, type ImageProps, type ImageContentFit } from 'expo-image';
-import { PixelRatio } from 'react-native';
-import { useNookClient, thumbBucket } from '@nook/core';
+import { PixelRatio, View, type ViewStyle } from 'react-native';
+import { useNookClient, thumbBucket, faceCrop } from '@nook/core';
 
 const BLURHASH_PLACEHOLDER = { blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' };
 
@@ -35,6 +36,56 @@ export function RemoteThumb({
       recyclingKey={`${photoId}:${px}`}
       cachePolicy="memory-disk"
     />
+  );
+}
+
+/**
+ * A person tile cropped to the cover photo's face box (falls back to a normal
+ * cover-fit thumbnail when there's no box). Requests a larger source so the
+ * often-small face stays sharp after the zoom.
+ */
+export function FaceThumb({
+  photoId,
+  face,
+  size,
+  rounded = true,
+  bg,
+}: {
+  photoId: string;
+  face: [number, number, number, number] | null | undefined;
+  size: number;
+  rounded?: boolean;
+  bg?: string;
+}) {
+  const client = useNookClient();
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const px = thumbBucket(Math.ceil(size * PixelRatio.get()) * 3);
+  const crop = face && dims ? faceCrop(face, dims.w, dims.h) : null;
+  const container: ViewStyle = {
+    width: size,
+    height: size,
+    borderRadius: rounded ? size / 2 : 8,
+    overflow: 'hidden',
+    backgroundColor: bg ?? 'rgba(255,255,255,0.06)',
+  };
+  return (
+    <View style={container}>
+      <Image
+        source={{ uri: client.thumbUrl(photoId, px), headers: client.authHeaders() }}
+        style={
+          crop
+            ? { position: 'absolute', width: `${crop.widthPct}%`, height: `${crop.heightPct}%`, left: `${crop.leftPct}%`, top: `${crop.topPct}%` }
+            : { width: '100%', height: '100%' }
+        }
+        contentFit={crop ? 'fill' : 'cover'}
+        onLoad={(e) => {
+          const s = e.source;
+          if (s?.width && s?.height) setDims({ w: s.width, h: s.height });
+        }}
+        cachePolicy="memory-disk"
+        transition={120}
+      />
+    </View>
   );
 }
 

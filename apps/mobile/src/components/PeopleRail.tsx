@@ -6,7 +6,7 @@ import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { usePeople, usePlaces } from '@nook/core';
-import { RemoteThumb } from '@/components/RemoteImage';
+import { RemoteThumb, FaceThumb } from '@/components/RemoteImage';
 import { Text } from '@/components/ui';
 import { useTheme } from '@/theme';
 
@@ -47,11 +47,7 @@ export function PeopleRail() {
               key={`person-${p.id}`}
               onPress={() => router.push({ pathname: '/people/[id]', params: { id: p.id, name: p.name ?? '' } })}
               style={{ alignItems: 'center', width: AVATAR }}>
-              <RemoteThumb
-                photoId={p.coverPhotoId}
-                displaySize={AVATAR}
-                style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: t.colors.surfaceContainerHigh }}
-              />
+              <FaceThumb photoId={p.coverPhotoId} face={p.coverFace} size={AVATAR} bg={t.colors.surfaceContainerHigh} />
               <Text variant="caption" numberOfLines={1} style={{ marginTop: 4 }}>
                 {p.name ?? 'Person'}
               </Text>

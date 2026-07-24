@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { usePeople, usePlaces } from '@nook/core';
-import { RemoteThumb } from '@/components/RemoteImage';
+import { RemoteThumb, FaceThumb } from '@/components/RemoteImage';
 import { Text, ScreenHeader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
@@ -13,8 +13,8 @@ export default function PeopleIndex() {
   const places = usePlaces();
 
   const items = [
-    ...(people.data ?? []).map((p) => ({ kind: 'person' as const, id: p.id, label: p.name ?? 'Person', count: p.count, cover: p.coverPhotoId })),
-    ...(places.data ?? []).map((pl) => ({ kind: 'place' as const, id: pl.label, label: pl.label.split(',')[0]!, count: pl.count, cover: pl.coverPhotoId })),
+    ...(people.data ?? []).map((p) => ({ kind: 'person' as const, id: p.id, label: p.name ?? 'Person', count: p.count, cover: p.coverPhotoId, face: p.coverFace })),
+    ...(places.data ?? []).map((pl) => ({ kind: 'place' as const, id: pl.label, label: pl.label.split(',')[0]!, count: pl.count, cover: pl.coverPhotoId, face: null })),
   ];
 
   return (
@@ -34,7 +34,11 @@ export default function PeopleIndex() {
                 ? router.push({ pathname: '/people/[id]', params: { id: item.id, name: item.label } })
                 : router.push({ pathname: '/place/[label]', params: { label: item.id } })
             }>
-            <RemoteThumb photoId={item.cover} displaySize={96} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: t.colors.surfaceContainerHigh }} />
+            {item.kind === 'person' ? (
+              <FaceThumb photoId={item.cover} face={item.face} size={96} bg={t.colors.surfaceContainerHigh} />
+            ) : (
+              <RemoteThumb photoId={item.cover} displaySize={96} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: t.colors.surfaceContainerHigh }} />
+            )}
             <Text variant="caption" numberOfLines={1} style={{ marginTop: 6 }}>{item.label}</Text>
             <Text variant="caption" color={t.colors.onSurfaceVariant}>{item.count}</Text>
           </Pressable>
