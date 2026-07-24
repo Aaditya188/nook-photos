@@ -66,6 +66,12 @@ export default function LibraryScreen() {
           )}
         </View>
       </View>
+      {!selectMode ? (
+        <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
+          <QuickLink icon="luggage" label="Trips" onPress={() => router.push('/trips')} />
+          <QuickLink icon="people" label="People & Places" onPress={() => router.push('/people')} />
+        </View>
+      ) : null}
       {!selectMode ? <MemoriesRail /> : null}
       {!selectMode ? <PeopleRail /> : null}
     </View>
@@ -130,5 +136,26 @@ export default function LibraryScreen() {
         </View>
       ) : null}
     </SafeAreaView>
+  );
+}
+
+/** A compact pill shortcut in the Library header (Trips, People & Places…). */
+function QuickLink({ icon, label, onPress }: { icon: keyof typeof MaterialIcons.glyphMap; label: string; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: t.radius.pill,
+        backgroundColor: t.colors.surfaceContainerHigh,
+      }}>
+      <MaterialIcons name={icon} size={17} color={t.colors.primaryContainer} />
+      <Text variant="label">{label}</Text>
+    </Pressable>
   );
 }
