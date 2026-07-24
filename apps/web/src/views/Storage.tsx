@@ -16,7 +16,7 @@ import { fmtBytes } from '../lib/format';
 
 const n = (v: number) => v.toLocaleString('en-US');
 
-function MiniThumb({ photo, onClick, size = 200 }: { photo: PhotoRecord; onClick?: () => void; size?: number }) {
+export function MiniThumb({ photo, onClick, size = 200 }: { photo: PhotoRecord; onClick?: () => void; size?: number }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;

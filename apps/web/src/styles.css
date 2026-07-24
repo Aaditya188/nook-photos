@@ -3993,3 +3993,32 @@ h3.day-header {
 @media (max-width: 720px) {
   .ins-cards { grid-template-columns: 1fr 1fr; }
 }
+
+/* ============================== recap ============================== */
+.rc-wrap { display: flex; flex-direction: column; gap: 26px; max-width: 900px; }
+.rc-years { display: flex; flex-wrap: wrap; gap: 8px; }
+.rc-year-pill {
+  padding: 7px 16px; border-radius: 999px; border: 0.5px solid var(--hairline);
+  background: var(--tile-bg); color: var(--text-72); font-size: 14px; font-weight: 650; cursor: pointer;
+}
+.rc-year-pill.active { background: var(--sel-bg); color: var(--green); border-color: transparent; }
+.rc-hero {
+  border-radius: 20px; padding: 40px 28px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(87,211,138,0.22), transparent 60%), var(--tile-bg);
+  border: 0.5px solid var(--hairline);
+}
+.rc-hero-kicker { font-size: 14px; color: var(--text-60); letter-spacing: 0.3px; }
+.rc-hero-year { font-size: 72px; font-weight: 800; letter-spacing: -2px; line-height: 1; color: var(--green); }
+.rc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.rc-stat { background: var(--tile-bg); border: 0.5px solid var(--hairline); border-radius: 14px; padding: 16px 18px; }
+.rc-stat-num { font-size: 26px; font-weight: 750; letter-spacing: -0.5px; }
+.rc-stat-label { font-size: 12.5px; color: var(--text-60); margin-top: 2px; }
+.rc-section { display: flex; flex-direction: column; gap: 12px; }
+.rc-h { font-size: 15px; font-weight: 700; margin: 0; }
+.rc-months { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+.rc-month { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
+.rc-month-bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.rc-month-bar { width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #57d38a, #2f8f5c); }
+.rc-month-label { font-size: 11px; color: var(--text-45); }
+.rc-note { font-size: 13px; color: var(--text-60); }
+.rc-highlights { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }

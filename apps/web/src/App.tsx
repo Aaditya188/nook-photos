@@ -53,6 +53,7 @@ import { SharedAlbum } from './views/SharedAlbum';
 import { BackupHealthView } from './views/BackupHealth';
 import { TripsView, TripView } from './views/Trips';
 import { StorageView, DuplicatesView } from './views/Storage';
+import { RecapView } from './views/Recap';
 import { SettingsView } from './views/Settings';
 
 // Leaflet is heavy — the map route loads on demand.
@@ -135,7 +136,7 @@ function Shell() {
   useGridZoomGestures(contentRef);
 
   // Search is a photo-library affordance — hide it on admin/utility pages.
-  const noSearch = ['/settings', '/backup', '/storage', '/duplicates', '/welcome', '/map', '/trips'];
+  const noSearch = ['/settings', '/backup', '/storage', '/duplicates', '/recap', '/welcome', '/map', '/trips'];
   const showSearch = !noSearch.some((p) => location.pathname.startsWith(p));
 
   const photos = libQ.data || [];
@@ -178,7 +179,10 @@ function Shell() {
   }, [location.pathname, exitSelect]);
 
   const navGroups = useMemo<NavGroup[]>(() => {
-    const primary = [{ to: '/', title: 'Library', icon: 'library', count: visible.length }];
+    const primary = [
+      { to: '/', title: 'Library', icon: 'library', count: visible.length },
+      { to: '/recap', title: 'Recap', icon: 'recap', count: null },
+    ];
     for (const key of CATEGORY_ORDER) {
       const n = visible.filter(CATEGORIES[key].test).length;
       if (key === 'favorites' || n > 0) {
@@ -261,6 +265,7 @@ function Shell() {
               <Route path="/backup" element={<BackupHealthView />} />
               <Route path="/storage" element={<StorageView />} />
               <Route path="/duplicates" element={<DuplicatesView />} />
+              <Route path="/recap" element={<RecapView />} />
               <Route path="/welcome" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
