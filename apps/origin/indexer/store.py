@@ -361,10 +361,16 @@ class Store:
             for r in rows:
                 g = groups.setdefault(r["person_id"], {"photos": set(), "cover": None, "cover_score": -1, "box": None})
                 g["photos"].add(r["photo_id"])
-                if r["det_score"] > g["cover_score"]:
-                    g["cover_score"] = r["det_score"]
+                # Cover = the shot where this person's face is the most prominent
+                # (largest box area, weighted by detection confidence), so tiles
+                # crop to a big close-up rather than a tiny face in a group photo.
+                box = r.get("box")
+                area = (box[2] * box[3]) if box and len(box) == 4 else 0.0
+                score = area * (0.5 + 0.5 * float(r["det_score"]))
+                if score > g["cover_score"]:
+                    g["cover_score"] = score
                     g["cover"] = r["photo_id"]
-                    g["box"] = r.get("box")
+                    g["box"] = box
             names = {}
             hidden = set()
             for pid, name, hid in self._db.execute(

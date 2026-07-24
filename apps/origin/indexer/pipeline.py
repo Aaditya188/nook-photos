@@ -10,6 +10,12 @@ import threading
 
 from models import load_bgr
 
+# Face-detection noise filters: skip low-confidence detections and tiny
+# background faces (fraction of the image's larger side) so they don't spawn
+# junk one-off "people". Tunable via env.
+FACE_MIN_SCORE = float(os.environ.get("NOOK_FACE_MIN_SCORE", "0.62"))
+FACE_MIN_SIZE = float(os.environ.get("NOOK_FACE_MIN_SIZE", "0.05"))
+
 
 class Pipeline:
     def __init__(self, data_dir, store, clip, faces, places, ocr=None, poll_interval=15):

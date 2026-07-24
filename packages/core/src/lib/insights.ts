@@ -68,6 +68,62 @@ export interface DuplicateGroup {
   wastedBytes: number;
 }
 
+/** Hamming distance between two equal-length hex perceptual hashes (dHash). */
+export function hammingHex(a: string, b: string): number {
+  if (!a || !b || a.length !== b.length) return 999;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) {
+    let x = parseInt(a[i]!, 16) ^ parseInt(b[i]!, 16);
+    while (x) {
+      d += x & 1;
+      x >>= 1;
+    }
+  }
+  return d;
+}
+
+/**
+ * Refine size-based candidate groups with perceptual hashes: split each group
+ * into sub-groups whose dHashes are within `maxDist`, dropping coincidental
+ * byte-size collisions (different images that happen to share size+dimensions).
+ * `hashes` maps photoId → dHash hex; photos without a hash are kept together
+ * (can't disprove them). Returns real duplicate sets (≥2), largest waste first.
+ */
+export function refineDuplicates(
+  groups: DuplicateGroup[],
+  hashes: Map<string, string>,
+  maxDist = 6,
+): DuplicateGroup[] {
+  const out: DuplicateGroup[] = [];
+  for (const g of groups) {
+    const buckets: PhotoRecord[][] = [];
+    for (const p of g.photos) {
+      const h = hashes.get(p.id);
+      let placed = false;
+      if (h) {
+        for (const b of buckets) {
+          const bh = hashes.get(b[0]!.id);
+          if (!bh || hammingHex(h, bh) <= maxDist) {
+            b.push(p);
+            placed = true;
+            break;
+          }
+        }
+      } else if (buckets.length) {
+        buckets[0]!.push(p); // unknown hash → keep with the first bucket
+        placed = true;
+      }
+      if (!placed) buckets.push([p]);
+    }
+    for (const b of buckets) {
+      if (b.length < 2) continue;
+      b.sort((a, c) => Date.parse(c.createdAt) - Date.parse(a.createdAt));
+      out.push({ key: b[0]!.id, photos: b, wastedBytes: (b.length - 1) * (b[0]!.bytes || 0) });
+    }
+  }
+  return out.sort((a, b) => b.wastedBytes - a.wastedBytes);
+}
+
 /**
  * Find likely-duplicate sets: photos that share an identical byte size AND pixel
  * dimensions AND media type are, in practice, the same file (re-imported, copied

@@ -16,7 +16,7 @@ export function faceCrop(
   box: [number, number, number, number],
   imgW: number,
   imgH: number,
-  pad = 1.7,
+  pad = 1.4,
 ): FaceCrop | null {
   if (!imgW || !imgH) return null;
   const [bx, by, bw, bh] = box;

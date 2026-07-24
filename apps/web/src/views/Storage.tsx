@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { PhotoRecord } from '@nook/core';
-import { storageInsights, findDuplicateGroups } from '@nook/core';
+import { storageInsights, findDuplicateGroups, refineDuplicates } from '@nook/core';
 import { useLibraryQ, useStatusQ, useActions } from '../state/data';
 import { useView, useRegisterList } from '../state/view';
 import { useModals, useToast } from '../state/ui';
@@ -119,6 +119,43 @@ export function StorageView() {
 
 // ----------------------------------------------------------------- duplicates
 
+/** Perceptual hash (dHash, 64-bit hex) of a photo's thumbnail via a tiny canvas. */
+async function dHashOf(photo: PhotoRecord): Promise<string> {
+  const url = await getBlobUrl('dhash:' + photo.id, photo.thumbUrl + '?w=64' + (photo.editedAt ? '&e=' + photo.editedAt : ''));
+  if (!url) return '';
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = 9, H = 8;
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext('2d');
+        if (!ctx) return resolve('');
+        ctx.drawImage(img, 0, 0, W, H);
+        const d = ctx.getImageData(0, 0, W, H).data;
+        let bits = '';
+        for (let y = 0; y < H; y++)
+          for (let x = 0; x < W - 1; x++) {
+            const i = (y * W + x) * 4;
+            const j = (y * W + x + 1) * 4;
+            const l1 = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            const l2 = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
+            bits += l1 < l2 ? '1' : '0';
+          }
+        let hex = '';
+        for (let k = 0; k < 64; k += 4) hex += parseInt(bits.slice(k, k + 4), 2).toString(16);
+        resolve(hex);
+      } catch {
+        resolve('');
+      }
+    };
+    img.onerror = () => resolve('');
+    img.src = url;
+  });
+}
+
 export function DuplicatesView() {
   const libQ = useLibraryQ();
   const actions = useActions();
@@ -126,7 +163,38 @@ export function DuplicatesView() {
   const toast = useToast();
   const { openLightbox } = useView();
   const photos = libQ.data || [];
-  const groups = useMemo(() => findDuplicateGroups(photos), [photos]);
+  // Cheap pre-filter (same bytes + dimensions), then verify content with a
+  // perceptual hash so coincidental size collisions aren't reported as dupes.
+  const candidates = useMemo(() => findDuplicateGroups(photos), [photos]);
+  const candidatePhotos = useMemo(() => candidates.flatMap((g) => g.photos), [candidates]);
+  const [hashes, setHashes] = useState<Map<string, string>>(new Map());
+  const [scanning, setScanning] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!candidatePhotos.length) {
+      setHashes(new Map());
+      setScanning(false);
+      return;
+    }
+    setScanning(true);
+    (async () => {
+      const m = new Map<string, string>();
+      for (const p of candidatePhotos) {
+        if (!alive) return;
+        m.set(p.id, await dHashOf(p));
+      }
+      if (alive) {
+        setHashes(m);
+        setScanning(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [candidatePhotos]);
+
+  const groups = useMemo(() => (scanning ? [] : refineDuplicates(candidates, hashes)), [scanning, candidates, hashes]);
 
   const flat = useMemo(() => groups.flatMap((g) => g.photos), [groups]);
   useRegisterList(flat);
@@ -178,11 +246,16 @@ export function DuplicatesView() {
       <ViewHead title="Duplicates" />
       <div id="grid">
         <div className="ins-wrap">
-          {groups.length === 0 ? (
+          {scanning ? (
+            <div className="ins-empty">
+              <div className="ins-num">Scanning…</div>
+              <div className="ins-label">Comparing {candidatePhotos.length} candidates by image content.</div>
+            </div>
+          ) : groups.length === 0 ? (
             <div className="ins-empty">
               <div className="ins-num">No duplicates found</div>
               <div className="ins-label">
-                Nook groups items that share an identical size and dimensions. Nothing to reclaim right now.
+                Nook matches items by image content (perceptual hash). Nothing to reclaim right now.
               </div>
             </div>
           ) : (
