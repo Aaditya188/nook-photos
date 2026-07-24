@@ -32,16 +32,23 @@ export function VideoPlayer({
   src,
   poster,
   videoRef: externalRef,
+  aspectRatio,
+  startMuted,
   onError,
   onWaiting,
   onCanPlay,
+  onEnded,
 }: {
   src: string;
   poster?: string;
   videoRef?: React.MutableRefObject<HTMLVideoElement | null>;
+  /** Known display aspect ratio; reserves the frame box so poster→video doesn't jump. */
+  aspectRatio?: number;
+  startMuted?: boolean;
   onError?: () => void;
   onWaiting?: () => void;
   onCanPlay?: () => void;
+  onEnded?: () => void;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLVideoElement | null>(null);
@@ -54,7 +61,7 @@ export function VideoPlayer({
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(!!startMuted);
   const [volume, setVolume] = useState(1);
   const [controlsShown, setControlsShown] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,9 +141,11 @@ export function VideoPlayer({
       <video
         ref={setVideoRef}
         className="lb-media vp-video"
+        style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
         playsInline
         preload="metadata"
         autoPlay
+        muted={muted}
         poster={poster}
         src={src}
         onClick={toggle}
@@ -155,7 +164,10 @@ export function VideoPlayer({
         onCanPlay={onCanPlay}
         onPlaying={onCanPlay}
         onError={onError}
-        onEnded={() => setControlsShown(true)}
+        onEnded={() => {
+          setControlsShown(true);
+          onEnded?.();
+        }}
       />
 
       {!playing ? (

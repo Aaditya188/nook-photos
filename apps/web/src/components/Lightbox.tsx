@@ -95,17 +95,16 @@ export function Lightbox({
     return () => document.removeEventListener('keydown', onKey);
   }, [lightboxId, modals.isOpen, menuOpen, slideshow, closeLightbox, stepLightbox]);
 
-  // Slideshow: auto-advance; any navigation input stops it.
+  // Slideshow: auto-advance (wrapping). Images hold for ~5.5s; videos play to
+  // the end and then advance (see Stage's onEnded). It runs until Esc or the
+  // Exit control — a stray click no longer kills it. Videos/menu suppress the
+  // image timer so nothing double-advances.
+  const isVideo = !!p && p.mediaType === 'video' && p.uploadState === 'complete';
   useEffect(() => {
-    if (!slideshow || !lightboxId) return;
-    const t = setInterval(() => stepLightbox(1), 3500);
-    const stop = () => setSlideshow(false);
-    window.addEventListener('pointerdown', stop);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener('pointerdown', stop);
-    };
-  }, [slideshow, lightboxId, stepLightbox]);
+    if (!slideshow || !lightboxId || isVideo) return;
+    const t = setTimeout(() => stepLightbox(1), 5500);
+    return () => clearTimeout(t);
+  }, [slideshow, lightboxId, isVideo, stepLightbox]);
 
   // Close only once we KNOW the photo is gone.
   useEffect(() => {
@@ -157,7 +156,12 @@ export function Lightbox({
   );
 
   return (
-    <div className={'lightbox' + (infoOpen ? ' info-open' : '')} role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <div
+      className={'lightbox' + (infoOpen ? ' info-open' : '') + (slideshow ? ' slideshow-mode' : '')}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+    >
       <div className="lb-backdrop" onClick={closeLightbox} />
       <div className="lb-stage-wrap">
         <div className="lb-topbar">
@@ -223,8 +227,29 @@ export function Lightbox({
         </div>
 
         <div className="lb-stage" onClick={() => menuOpen && setMenuOpen(false)}>
-          <Stage key={p.id + ':' + p.uploadState + ':' + (p.editedAt ?? 0)} photo={p} />
+          <Stage
+            key={p.id + ':' + p.uploadState + ':' + (p.editedAt ?? 0)}
+            photo={p}
+            slideshow={slideshow}
+            onEnded={slideshow ? () => stepLightbox(1) : undefined}
+          />
         </div>
+
+        {slideshow ? (
+          <div className="lb-slideshow">
+            <div
+              className={'lb-slideshow-bar' + (isVideo ? ' paused' : '')}
+              key={p.id}
+              style={{ animationDuration: '5.5s' }}
+            />
+            <button type="button" className="lb-slideshow-exit" onClick={() => setSlideshow(false)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+              </svg>
+              Exit slideshow
+            </button>
+          </div>
+        ) : null}
 
         <button type="button" className="lb-btn lb-prev" aria-label="Previous photo" onClick={() => stepLightbox(-1)}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -246,10 +271,18 @@ export function Lightbox({
 
 // -------------------------------------------------------------------- stage
 
-function Stage({ photo: p }: { photo: PhotoRecord }) {
+function Stage({
+  photo: p,
+  slideshow,
+  onEnded,
+}: {
+  photo: PhotoRecord;
+  slideshow?: boolean;
+  onEnded?: () => void;
+}) {
   const { mediaUrl } = useAuth();
   if (p.mediaType === 'video' && p.uploadState === 'complete') {
-    return <VideoStage photo={p} mediaUrl={mediaUrl} />;
+    return <VideoStage photo={p} mediaUrl={mediaUrl} slideshow={slideshow} onEnded={onEnded} />;
   }
   return <ImageStage photo={p} />;
 }
@@ -257,19 +290,29 @@ function Stage({ photo: p }: { photo: PhotoRecord }) {
 function VideoStage({
   photo: p,
   mediaUrl,
+  slideshow,
+  onEnded,
 }: {
   photo: PhotoRecord;
   mediaUrl: (path: string) => string;
+  slideshow?: boolean;
+  onEnded?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const fellBack = useRef(false);
+  // Reserve the final frame box up front from the known dimensions so the
+  // poster→video handoff doesn't jump from the <video> default 300×150 box.
+  const aspectRatio = p.width && p.height ? p.width / p.height : undefined;
 
   return (
     <div className="lb-video-wrap">
       <VideoPlayer
         videoRef={videoRef}
+        aspectRatio={aspectRatio}
+        startMuted={slideshow}
+        onEnded={onEnded}
         poster={mediaUrl(p.thumbUrl)}
         src={mediaUrl(p.originalUrl)}
         onCanPlay={() => setLoading(false)}
