@@ -2,13 +2,13 @@
  * A titled, zoomable photo collection — reused by album / media-type / person /
  * place / search / deleted screens. Handles loading + empty states.
  */
-import { View, Pressable, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { PhotoRecord } from '@nook/core';
 import { PhotoGrid } from '@/components/PhotoGrid';
-import { Text } from '@/components/ui';
+import { Text, BrandLoader, ScreenHeader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useTheme } from '@/theme';
 
@@ -32,28 +32,13 @@ export function CollectionScreen({
   const t = useTheme();
   const setViewerList = useViewer((s) => s.setList);
 
-  const header = () => (
-    <View style={{ paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm, paddingBottom: t.spacing.md, gap: 2 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title" style={{ flex: 1 }} numberOfLines={1}>{title}</Text>
-        {right}
-      </View>
-      {subtitle ? (
-        <Text variant="caption" color={t.colors.onSurfaceVariant} style={{ marginLeft: 34 }}>{subtitle}</Text>
-      ) : null}
-    </View>
-  );
+  const header = () => <ScreenHeader title={title} subtitle={subtitle} right={right} />;
 
   if (loading) {
     return (
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
         {header()}
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={t.colors.primaryContainer} />
-        </View>
+        <BrandLoader />
       </SafeAreaView>
     );
   }

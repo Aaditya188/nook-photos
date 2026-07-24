@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, detectTrips, tripTitle } from '@nook/core';
 import { RemoteThumb } from '@/components/RemoteImage';
-import { Text, BrandLoader } from '@/components/ui';
+import { Text, BrandLoader, ScreenHeader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export default function TripsScreen() {
@@ -20,15 +20,10 @@ export default function TripsScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, padding: t.spacing.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title" style={{ flex: 1 }}>Trips</Text>
-        {trips.length ? (
-          <Text variant="caption" color={t.colors.onSurfaceVariant}>{trips.length} {trips.length === 1 ? 'trip' : 'trips'}</Text>
-        ) : null}
-      </View>
+      <ScreenHeader
+        title="Trips"
+        right={trips.length ? <Text variant="caption" color={t.colors.onSurfaceVariant}>{trips.length} {trips.length === 1 ? 'trip' : 'trips'}</Text> : undefined}
+      />
 
       {library.isLoading ? (
         <BrandLoader label="Finding your trips…" />

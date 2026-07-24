@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { usePeople, usePlaces } from '@nook/core';
 import { RemoteThumb } from '@/components/RemoteImage';
-import { Text } from '@/components/ui';
+import { Text, ScreenHeader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export default function PeopleIndex() {
@@ -19,12 +19,7 @@ export default function PeopleIndex() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, padding: t.spacing.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title">People &amp; Places</Text>
-      </View>
+      <ScreenHeader title="People &amp; Places" />
       <FlatList
         data={items}
         keyExtractor={(it) => `${it.kind}-${it.id}`}

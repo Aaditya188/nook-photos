@@ -18,7 +18,8 @@ import {
   type ViewProps,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '@/theme';
 
 type Variant = keyof ReturnType<typeof useTheme>['typeScale'];
@@ -174,6 +175,47 @@ export function Card({ style, ...rest }: ViewProps) {
 export function Divider() {
   const t = useTheme();
   return <View style={{ height: 1, backgroundColor: t.colors.outlineVariant, opacity: 0.5 }} />;
+}
+
+/**
+ * Canonical detail-screen header: optional back chevron, title, optional right
+ * action, and an optional subtitle aligned under the title. Keeps every screen's
+ * top bar spaced identically (the mobile echo of the web ViewHead).
+ */
+export function ScreenHeader({
+  title,
+  subtitle,
+  right,
+  back = true,
+  onBack,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  back?: boolean;
+  onBack?: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm, paddingBottom: t.spacing.md, gap: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
+        {back ? (
+          <Pressable onPress={onBack ?? (() => router.back())} hitSlop={8}>
+            <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
+          </Pressable>
+        ) : null}
+        <Text variant="title" style={{ flex: 1 }} numberOfLines={1}>
+          {title}
+        </Text>
+        {right}
+      </View>
+      {subtitle ? (
+        <Text variant="caption" color={t.colors.onSurfaceVariant} style={{ marginLeft: back ? 34 : 0 }}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 /**

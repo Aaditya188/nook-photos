@@ -13,7 +13,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, useNookClient, type PhotoRecord } from '@nook/core';
-import { Text, BrandLoader } from '@/components/ui';
+import { Text, BrandLoader, ScreenHeader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
@@ -56,13 +56,10 @@ export default function MapScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, padding: t.spacing.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title" style={{ flex: 1 }}>Map</Text>
-        {geo.length ? <Text variant="caption" color={t.colors.onSurfaceVariant}>{geo.length.toLocaleString()} items</Text> : null}
-      </View>
+      <ScreenHeader
+        title="Map"
+        right={geo.length ? <Text variant="caption" color={t.colors.onSurfaceVariant}>{geo.length.toLocaleString()} items</Text> : undefined}
+      />
 
       {library.isLoading ? (
         <BrandLoader label="Loading map…" />

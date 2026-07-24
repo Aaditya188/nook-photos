@@ -9,7 +9,7 @@ import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNookClient, type AlbumGrant } from '@nook/core';
-import { Text, Card, Button, TextField, Divider } from '@/components/ui';
+import { Text, Card, Button, TextField, Divider, ScreenHeader } from '@/components/ui';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 
@@ -99,12 +99,7 @@ export default function AlbumShareScreen() {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm, padding: t.spacing.md }}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <MaterialIcons name="arrow-back" size={26} color={t.colors.onSurface} />
-        </Pressable>
-        <Text variant="title">Share album</Text>
-      </View>
+      <ScreenHeader title="Share album" />
 
       <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.xl, paddingBottom: t.spacing.xxl }}>
         {/* ---- People ---- */}
