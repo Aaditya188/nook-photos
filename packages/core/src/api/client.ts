@@ -145,6 +145,21 @@ export class NookClient {
   }) {
     return this.request<User>('PATCH', '/api/account', { body: input });
   }
+  /** Upload a profile photo (raw JPEG bytes; the client downscales first). */
+  async updateAvatar(bytes: Blob | ArrayBuffer | Uint8Array): Promise<User> {
+    const headers: Record<string, string> = { 'Content-Type': 'image/jpeg' };
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    const res = await fetch(this.url('/api/account/avatar'), {
+      method: 'PUT',
+      headers,
+      body: bytes as BodyInit,
+    });
+    if (!res.ok) throw new NookApiError(res.status, `HTTP ${res.status}`);
+    return (await res.json()) as User;
+  }
+  removeAvatar() {
+    return this.request<User>('DELETE', '/api/account/avatar');
+  }
   users() {
     return this.request<{ users: User[] }>('GET', '/api/users');
   }

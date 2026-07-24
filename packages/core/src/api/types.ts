@@ -13,6 +13,8 @@ export interface User {
   role: UserRole;
   /** Two-factor (TOTP) enabled for this account. */
   totpEnabled?: boolean;
+  /** Relative URL of the profile photo (cache-busted), or null if none set. */
+  avatarUrl?: string | null;
   createdAt: string;
 }
 

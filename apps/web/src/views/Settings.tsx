@@ -3,7 +3,7 @@
  * Users, Server). Consolidates account editing, 2FA, signed-in devices,
  * user management, and server info that used to live in scattered modals.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
@@ -94,8 +94,27 @@ function Field({
 
 // ------------------------------------------------------------------ profile
 
+/** Downscale a chosen image to a square-ish 512px JPEG for a compact avatar. */
+async function fileToAvatarBlob(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const max = 512;
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  return await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not encode image'))), 'image/jpeg', 0.86),
+  );
+}
+
 function ProfileSection() {
-  const { client, user, setUser } = useAuth();
+  const { client, user, setUser, mediaUrl } = useAuth();
   const toast = useToast();
   const [account, setAccount] = useState<User | null>(user);
   const [name, setName] = useState(user?.displayName || '');
@@ -105,6 +124,45 @@ function ProfileSection() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [emailLocked, setEmailLocked] = useState(true);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setError('');
+    setAvatarBusy(true);
+    try {
+      const blob = await fileToAvatarBlob(file);
+      const updated = await client.updateAvatar(blob);
+      setUser(updated);
+      setAccount(updated);
+      toast('Profile photo updated');
+    } catch (err) {
+      setError((err as Error).message || 'Could not upload photo');
+    }
+    setAvatarBusy(false);
+  };
+
+  const removeAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      const updated = await client.removeAvatar();
+      setUser(updated);
+      setAccount(updated);
+      toast('Profile photo removed');
+    } catch (err) {
+      setError((err as Error).message || 'Could not remove photo');
+    }
+    setAvatarBusy(false);
+  };
+
+  const initials = (account?.displayName || account?.username || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() || '')
+    .join('');
 
   useEffect(() => {
     client.account().then((a) => {
@@ -144,6 +202,32 @@ function ProfileSection() {
   return (
     <section className="set-section">
       <h2 className="set-h">Profile</h2>
+      <div className="set-avatar-row">
+        <div className="set-avatar">
+          {account?.avatarUrl ? (
+            <img src={mediaUrl(account.avatarUrl)} alt="" />
+          ) : (
+            <span className="set-avatar-initials">{initials}</span>
+          )}
+        </div>
+        <div className="set-avatar-actions">
+          <button type="button" className="m-btn" disabled={avatarBusy} onClick={() => fileRef.current?.click()}>
+            {avatarBusy ? 'Working…' : account?.avatarUrl ? 'Change photo' : 'Upload photo'}
+          </button>
+          {account?.avatarUrl ? (
+            <button type="button" className="m-btn ghost" disabled={avatarBusy} onClick={removeAvatar}>
+              Remove
+            </button>
+          ) : null}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={onPickAvatar}
+          />
+        </div>
+      </div>
       <div className="set-form">
         <Field label="Name" type="text" value={name} onChange={setName} />
         <label className="set-field">

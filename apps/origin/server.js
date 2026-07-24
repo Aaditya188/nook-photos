@@ -46,6 +46,7 @@ const ROOT = __dirname;
 const DATA_DIR = path.resolve(ROOT, process.env.NOOK_DATA_DIR || 'data');
 const ORIGINALS_DIR = path.join(DATA_DIR, 'originals');
 const THUMBS_DIR = path.join(DATA_DIR, 'thumbs');
+const AVATARS_DIR = path.join(DATA_DIR, 'avatars');
 const PUBLIC_DIR = path.resolve(ROOT, 'public');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
@@ -139,7 +140,7 @@ function publicUrl() {
 const db = { users: [], tokens: {}, photos: [], albums: [], settings: {} };
 
 function bootFs() {
-  for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR]) {
+  for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR, AVATARS_DIR]) {
     fs.mkdirSync(dir, { recursive: true });
   }
   sweepStaleTemps();
@@ -234,6 +235,9 @@ function originalPath(id) {
 }
 function thumbPath(id) {
   return path.join(THUMBS_DIR, id + '.jpg');
+}
+function avatarPath(userId) {
+  return path.join(AVATARS_DIR, userId + '.jpg');
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +426,8 @@ function toPublicUser(u) {
     role: u.role,
     createdAt: u.createdAt,
     totpEnabled: !!(u.totp && u.totp.enabled),
+    // Cache-busted so a freshly uploaded avatar shows immediately.
+    avatarUrl: u.avatarAt ? '/api/users/' + u.id + '/avatar?v=' + u.avatarAt : null,
   };
 }
 
@@ -1033,6 +1039,31 @@ function handleGetAccount(res, user) {
   sendJson(res, 200, toPublicUser(user));
 }
 
+/** Store a profile photo (already downscaled JPEG by the client). */
+async function handlePutAvatar(req, res, user) {
+  const buf = await readBody(req, MAX_UPLOAD_BYTES);
+  if (buf.length === 0) throw httpError(400, 'empty avatar body');
+  writeFileAtomic(avatarPath(user.id), buf);
+  user.avatarAt = Date.now(); // cache-buster + presence flag
+  persist();
+  sendJson(res, 200, toPublicUser(user));
+}
+
+async function handleDeleteAvatar(res, user) {
+  try { fs.rmSync(avatarPath(user.id), { force: true }); } catch {}
+  user.avatarAt = null;
+  persist();
+  sendJson(res, 200, toPublicUser(user));
+}
+
+/** Any signed-in user may view another user's avatar (shown on shared albums, etc.). */
+async function handleGetAvatar(req, res, userId) {
+  const target = findUser(userId);
+  if (!target || !target.avatarAt) throw httpError(404, 'no avatar for ' + userId);
+  const served = await serveFile(res, avatarPath(userId), 'image/jpeg', req);
+  if (!served) throw httpError(404, 'no avatar for ' + userId);
+}
+
 async function handlePatchAccount(req, res, user) {
   const body = await readJsonBody(req);
   if (body.displayName !== undefined) {
@@ -1627,7 +1658,12 @@ async function handleApi(req, res, pathname) {
   // ---- Bearer auth for everything else ----
   const authHeader = req.headers['authorization'] || '';
   const m = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  const token = m ? m[1].trim() : null;
+  let token = m ? m[1].trim() : null;
+  if (!token) {
+    // <img>/<video> can't set an Authorization header, so media may auth via ?token=.
+    const qt = new URL(req.url, 'http://localhost').searchParams.get('token');
+    if (qt) token = qt;
+  }
   const rec = token ? db.tokens[token] : null;
   const user = rec ? findUser(rec.userId) : null;
   if (!user) throw httpError(401, 'unauthorized: missing or invalid token');
@@ -1636,6 +1672,10 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/logout' && req.method === 'POST') return handleLogout(res, token);
   if (pathname === '/api/account' && req.method === 'GET') return handleGetAccount(res, user);
   if (pathname === '/api/account' && req.method === 'PATCH') return handlePatchAccount(req, res, user);
+  if (pathname === '/api/account/avatar' && req.method === 'PUT') return handlePutAvatar(req, res, user);
+  if (pathname === '/api/account/avatar' && req.method === 'DELETE') return handleDeleteAvatar(res, user);
+  const avatarMatch = /^\/api\/users\/([A-Za-z0-9_-]+)\/avatar$/.exec(pathname);
+  if (avatarMatch && req.method === 'GET') return handleGetAvatar(req, res, avatarMatch[1]);
   if (pathname === '/api/sessions' && req.method === 'GET') return handleListSessions(res, user, token);
   const sessMatch = /^\/api\/sessions\/([a-f0-9]{12})$/.exec(pathname);
   if (pathname === '/api/sessions' && req.method === 'DELETE') return handleRevokeOtherSessions(res, user, token);
