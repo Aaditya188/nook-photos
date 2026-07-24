@@ -78,9 +78,6 @@ export function TopBar({
 
       <div className="topbar-right">
         <UploadButton />
-        <div className="storage-summary">
-          {st ? fmtBytes(st.usedBytes) + ' of ' + fmtBytes(st.totalBytes) : ''}
-        </div>
       </div>
     </header>
   );
@@ -100,20 +97,21 @@ function UploadButton() {
   }, [open]);
   return (
     <div className="up-btn-wrap" ref={ref}>
-      <button type="button" className="up-btn" onClick={() => setOpen((v) => !v)} title="Upload">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <button type="button" className="up-btn up-btn-icon" onClick={() => setOpen((v) => !v)} title="Upload" aria-label="Upload">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
           <path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M4.5 15v3A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5v-3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
         </svg>
-        <span>Upload</span>
       </button>
       {open ? (
         <div className="up-menu" role="menu">
           <button type="button" className="up-menu-item" onClick={() => { setOpen(false); pickFiles(); }}>
-            Photos or videos…
+            <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.7"/><circle cx="8.5" cy="9.5" r="1.6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 16l4.5-4 4 3.5 3.5-3L20 16" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>
+            Photos or videos
           </button>
           <button type="button" className="up-menu-item" onClick={() => { setOpen(false); pickFolder(); }}>
-            A folder…
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6l1 1a2 2 0 0 0 1.4.6h5.8a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>
+            A folder
           </button>
           <div className="up-menu-hint">Or drag files anywhere · Takeout .zip supported</div>
         </div>

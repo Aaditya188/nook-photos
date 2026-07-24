@@ -52,7 +52,7 @@ import { Onboarding } from './views/Onboarding';
 import { SharedAlbum } from './views/SharedAlbum';
 import { BackupHealthView } from './views/BackupHealth';
 import { TripsView, TripView } from './views/Trips';
-import { StorageView, DuplicatesView } from './views/Storage';
+import { DuplicatesView } from './views/Storage';
 import { RecapView } from './views/Recap';
 import { SettingsView } from './views/Settings';
 
@@ -136,7 +136,7 @@ function Shell() {
   useGridZoomGestures(contentRef);
 
   // Search is a photo-library affordance — hide it on admin/utility pages.
-  const noSearch = ['/settings', '/backup', '/storage', '/duplicates', '/recap', '/welcome', '/map', '/trips'];
+  const noSearch = ['/settings', '/backup', '/duplicates', '/recap', '/welcome', '/map', '/trips'];
   const showSearch = !noSearch.some((p) => location.pathname.startsWith(p));
 
   const photos = libQ.data || [];
@@ -211,7 +211,6 @@ function Shell() {
       label: 'Library',
       items: [
         { to: '/backup', title: 'Backup Health', icon: 'cloud', count: pending || null },
-        { to: '/storage', title: 'Storage', icon: 'storage', count: null },
         { to: '/duplicates', title: 'Duplicates', icon: 'duplicate', count: null },
         { to: '/hidden', title: 'Hidden', icon: 'hidden', count: hiddenCount || null },
         { to: '/deleted', title: 'Recently Deleted', icon: 'trash', count: null },
@@ -263,7 +262,6 @@ function Shell() {
               <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
               <Route path="/settings/:section" element={<SettingsView />} />
               <Route path="/backup" element={<BackupHealthView />} />
-              <Route path="/storage" element={<StorageView />} />
               <Route path="/duplicates" element={<DuplicatesView />} />
               <Route path="/recap" element={<RecapView />} />
               <Route path="/welcome" element={<Onboarding />} />

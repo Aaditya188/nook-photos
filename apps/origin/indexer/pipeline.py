@@ -123,15 +123,20 @@ class Pipeline:
                 if bgr is not None:
                     ih, iw = bgr.shape[0], bgr.shape[1]
                     faces = self.faces.detect(bgr)
+                    kept = []
                     for f in faces:
                         x1, y1, x2, y2 = f["bbox"]
+                        bw = max(0.0, (x2 - x1) / iw)
+                        bh = max(0.0, (y2 - y1) / ih)
+                        # Drop noise: low-confidence detections and tiny background
+                        # faces, which otherwise spawn junk one-off "people".
+                        if f["det_score"] < FACE_MIN_SCORE or max(bw, bh) < FACE_MIN_SIZE:
+                            continue
                         # Normalized [x, y, w, h] (top-left origin) for a client crop.
-                        f["box"] = [
-                            max(0.0, x1 / iw), max(0.0, y1 / ih),
-                            min(1.0, (x2 - x1) / iw), min(1.0, (y2 - y1) / ih),
-                        ]
-                    if faces:
-                        self.store.add_faces(pid, uid, faces)
+                        f["box"] = [max(0.0, x1 / iw), max(0.0, y1 / ih), min(1.0, bw), min(1.0, bh)]
+                        kept.append(f)
+                    if kept:
+                        self.store.add_faces(pid, uid, kept)
 
             if self.places is not None:
                 lat, lon = p.get("latitude"), p.get("longitude")
