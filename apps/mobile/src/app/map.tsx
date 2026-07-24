@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { View, Pressable } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { router, Stack } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, useNookClient, type PhotoRecord } from '@nook/core';
@@ -31,6 +32,9 @@ export default function MapScreen() {
   const token = useAuth((s) => s.token);
   const library = useLibrary();
   const setViewerList = useViewer((s) => s.setList);
+  // On Android a WebView draws on top of screens pushed above it, so unmount it
+  // whenever the Map isn't the focused screen (e.g. after opening a photo).
+  const focused = useIsFocused();
 
   const geo = useMemo(
     () => (library.data ?? []).filter((p) => !p.hidden && hasGps(p)),
@@ -69,7 +73,7 @@ export default function MapScreen() {
             No photos with location data yet.
           </Text>
         </View>
-      ) : (
+      ) : focused ? (
         <WebView
           originWhitelist={['*']}
           source={{ html }}
@@ -85,6 +89,8 @@ export default function MapScreen() {
             }
           }}
         />
+      ) : (
+        <View style={{ flex: 1, backgroundColor: t.colors.background }} />
       )}
     </SafeAreaView>
   );
