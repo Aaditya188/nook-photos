@@ -1090,7 +1090,9 @@ button:focus-visible {
   flex-direction: column;
   padding: 14px 12px 16px;
   border-right: 0.5px solid var(--hairline);
-  overflow-y: auto;
+  /* The sidebar itself never scrolls; its nav list does, so the profile foot
+     stays pinned at the bottom even when the nav is tall (e.g. browser zoom). */
+  overflow: hidden;
 }
 
 .nav {
@@ -1098,6 +1100,8 @@ button:focus-visible {
   flex-direction: column;
   gap: 2px;
   flex: 1;
+  min-height: 0; /* allow the flex child to shrink below content and scroll */
+  overflow-y: auto;
 }
 
 .nav-label {
@@ -1149,6 +1153,7 @@ button:focus-visible {
 .nav-item.active .nav-count { color: var(--green); opacity: 0.85; }
 
 .sidebar-foot {
+  flex: none; /* pinned below the scrolling nav — never scrolls away */
   margin-top: 10px;
   padding-top: 10px;
   border-top: 0.5px solid var(--hairline);
