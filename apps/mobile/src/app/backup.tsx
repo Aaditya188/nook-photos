@@ -178,6 +178,23 @@ function FreeUpCard() {
           </Text>
         </View>
       </View>
+      {/* Caveats that would otherwise make the count look wrong for no visible reason. */}
+      {scan && (state === 'ready' || state === 'done') && (scan.partialAccess || scan.mismatched > 0) ? (
+        <View style={{ gap: 4 }}>
+          {scan.partialAccess ? (
+            <Text variant="caption" color={t.colors.onSurfaceVariant}>
+              You granted access to selected photos only, so this covers just those. Allow access to
+              all photos to free up more.
+            </Text>
+          ) : null}
+          {scan.mismatched > 0 ? (
+            <Text variant="caption" color={t.colors.onSurfaceVariant}>
+              Skipped {scan.mismatched} item{scan.mismatched === 1 ? '' : 's'} whose server copy did
+              not match — those are left on this phone.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {state === 'ready' && scan && scan.count > 0 ? (
         <Button title={`Remove ${scan.count} item${scan.count === 1 ? '' : 's'} from phone`} onPress={doFree} />
       ) : (

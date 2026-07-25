@@ -13,26 +13,68 @@ export interface FreeableScan {
   assetIds: string[];
   count: number;
   bytes: number;
+  /** True when iOS granted access to a hand-picked subset, so this scan saw only those. */
+  partialAccess: boolean;
+  /** Assets the server claims but whose dimensions disagree — skipped, never deleted. */
+  mismatched: number;
+}
+
+/** What the server verifiably holds, keyed by the device's localIdentifier. */
+interface Backed {
+  bytes: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Build the verified-backed-up map. `/api/library` already excludes soft-deleted
+ * photos, so anything still in the trash can never be mistaken for a safe backup.
+ */
+export async function backedUpByLocalId(client: NookClient): Promise<Map<string, Backed>> {
+  const { photos } = await client.library();
+  const verified = new Map<string, Backed>();
+  for (const p of photos) {
+    if (p.uploadState === 'complete' && p.localIdentifier) {
+      verified.set(p.localIdentifier, {
+        bytes: p.bytes || 0,
+        width: p.width || 0,
+        height: p.height || 0,
+      });
+    }
+  }
+  return verified;
+}
+
+/**
+ * Cheap integrity check before we delete someone's only local copy. The Asset from
+ * getAssetsAsync carries width/height for free, so comparing them costs nothing —
+ * unlike a per-asset getAssetInfoAsync stat, which is far too slow over thousands of
+ * items. A dimension disagreement means the localIdentifier matched the wrong asset
+ * (or the server holds something else), so we leave that one alone.
+ */
+function dimensionsAgree(a: MediaLibrary.Asset, b: Backed): boolean {
+  if (!b.width || !b.height || !a.width || !a.height) return true; // nothing to compare
+  const same = a.width === b.width && a.height === b.height;
+  const rotated = a.width === b.height && a.height === b.width; // EXIF orientation
+  return same || rotated;
 }
 
 export async function scanFreeable(client: NookClient): Promise<FreeableScan> {
   const perm = await MediaLibrary.requestPermissionsAsync(false);
-  if (perm.status !== 'granted' && (perm as { accessPrivileges?: string }).accessPrivileges !== 'limited') {
+  const privileges = (perm as { accessPrivileges?: string }).accessPrivileges;
+  if (perm.status !== 'granted' && privileges !== 'limited') {
     throw new Error('Photo access denied — enable it in Settings.');
   }
+  // With limited access iOS only exposes the photos the user hand-picked, so the scan
+  // can only ever see a subset. Report it rather than quietly under-counting.
+  const partialAccess = privileges === 'limited';
 
-  // Verified-backed-up map: localIdentifier -> server byte size.
-  const { photos } = await client.library();
-  const verified = new Map<string, number>();
-  for (const p of photos) {
-    if (p.uploadState === 'complete' && p.localIdentifier) {
-      verified.set(p.localIdentifier, p.bytes || 0);
-    }
-  }
+  const verified = await backedUpByLocalId(client);
 
   // Enumerate device assets and keep those the server verifiably holds.
   const assetIds: string[] = [];
   let bytes = 0;
+  let mismatched = 0;
   let cursor: string | undefined;
   do {
     const page = await MediaLibrary.getAssetsAsync({
@@ -41,15 +83,19 @@ export async function scanFreeable(client: NookClient): Promise<FreeableScan> {
       mediaType: [MediaLibrary.MediaType.photo, MediaLibrary.MediaType.video],
     });
     for (const a of page.assets) {
-      if (verified.has(a.id)) {
-        assetIds.push(a.id);
-        bytes += verified.get(a.id) || 0;
+      const b = verified.get(a.id);
+      if (!b) continue;
+      if (!dimensionsAgree(a, b)) {
+        mismatched++;
+        continue;
       }
+      assetIds.push(a.id);
+      bytes += b.bytes;
     }
     cursor = page.hasNextPage ? page.endCursor : undefined;
   } while (cursor);
 
-  return { assetIds, count: assetIds.length, bytes };
+  return { assetIds, count: assetIds.length, bytes, partialAccess, mismatched };
 }
 
 /**

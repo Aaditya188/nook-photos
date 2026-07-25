@@ -15,6 +15,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import type { NookClient, PhotoUpload } from '@nook/core';
+import { backedUpByLocalId } from './freeup';
 
 export type BackupPhase =
   | { state: 'idle' }
@@ -124,13 +125,20 @@ export async function runBackup(client: NookClient, prefs: BackupPrefs, handle: 
     handle.onPhase({ state: 'uploading', done: i + 1, total, uploaded, failed });
   }
 
-  // "Delete from phone after backup": one batch at the end (the OS shows its
-  // own confirmation), and only for assets that uploaded successfully.
+  // "Delete from phone after backup": one batch at the end (the OS shows its own
+  // confirmation). A successful upload call is NOT sufficient proof to delete
+  // someone's only copy — the request can succeed while the record fails to persist
+  // server-side. So re-read the library and keep only assets the server actually
+  // reports as uploadState 'complete' (that endpoint also excludes trashed photos).
+  // If the check itself fails we delete nothing; the backup already succeeded, and
+  // keeping a redundant local copy is always the safe direction.
   if (prefs.deleteAfterBackup && uploadedIds.length > 0) {
     try {
-      await MediaLibrary.deleteAssetsAsync(uploadedIds);
+      const verified = await backedUpByLocalId(client);
+      const confirmed = uploadedIds.filter((id) => verified.has(id));
+      if (confirmed.length > 0) await MediaLibrary.deleteAssetsAsync(confirmed);
     } catch {
-      /* user declined or OS refused — backup itself already succeeded */
+      /* user declined, OS refused, or verification failed — leave the originals alone */
     }
   }
 
