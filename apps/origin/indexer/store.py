@@ -49,6 +49,40 @@ FACE_MIN_CROP_PX = int(os.environ.get("NOOK_FACE_MIN_CROP_PX", "40"))
 # Sharpness at which a cover candidate counts as fully sharp (see _cover_score).
 COVER_SHARP_TARGET = 600.0
 
+# ---- model fingerprints ------------------------------------------------------
+# Vectors from two different models share no cosine space, so mixing them silently
+# corrupts search and face grouping — the failure mode is bad *results*, never an
+# error, which is exactly why it has to be detected rather than hoped about. The
+# fingerprint of the model that produced the stored vectors is kept in `index_state`
+# as a sentinel row per kind: photo_id = FP_KEY(kind), status = the fingerprint.
+# Those rows are inert everywhere else — indexed_ids() only ever selects
+# status='done', and no real photo id can collide with the "__model:…__" form.
+FINGERPRINT_KINDS = ("clip", "face")
+
+
+def _fp_key(kind: str) -> str:
+    return f"__model:{kind}__"
+
+
+# A photo whose stored vectors came from a superseded model is marked for re-index by
+# writing status = "stale:<reason>[,<reason>]" — not by deleting anything. It drops
+# out of indexed_ids() so the pipeline's normal backfill picks it up, and its old
+# vectors are held out of the in-memory search/cluster matrices until it is redone
+# (see _load_into_memory), so the two spaces are never mixed even mid-migration.
+STALE_PREFIX = "stale:"
+STALE_CLIP = "clip-model"
+STALE_FACE = "face-model"
+
+
+def _stale_reasons(status) -> set:
+    if not status or not str(status).startswith(STALE_PREFIX):
+        return set()
+    return {r for r in str(status)[len(STALE_PREFIX):].split(",") if r}
+
+
+def _stale_status(reasons) -> str:
+    return STALE_PREFIX + ",".join(sorted(reasons))
+
 
 def face_quality_ok(det_score: float, sharpness: float, crop_px: float) -> bool:
     """True if a face crop is clear enough to store: big enough, and sharp enough for
@@ -109,6 +143,10 @@ class Store:
         self._clip_mat: dict[str, np.ndarray] = {}
         self._face_rows: dict[str, list[dict]] = {}   # {face_id, photo_id, person_id, det_score, box, sharpness}
         self._face_mat: dict[str, np.ndarray] = {}
+        # Model migrations detected this boot but not yet finished: kind -> new
+        # fingerprint. Written to the DB only once the re-index drains, so an
+        # interrupted migration is simply re-detected and resumed on the next boot.
+        self._pending_fp: dict[str, str] = {}
         self._load_into_memory()
 
     # ---- schema ----
@@ -137,6 +175,9 @@ class Store:
             CREATE INDEX IF NOT EXISTS faces_user ON faces(user_id);
             CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id);
             CREATE INDEX IF NOT EXISTS places_user ON places(user_id);
+            -- faces are deleted by photo on re-index and on remove_photo; without
+            -- this that DELETE is a full scan of a table of ~2 KB embedding blobs.
+            CREATE INDEX IF NOT EXISTS faces_photo ON faces(photo_id);
             """
         )
         # Migration: people.hidden (0/1) for hiding a person from the rail.
@@ -166,9 +207,18 @@ class Store:
                 c.isolation_level = prev
 
     def _load_into_memory(self):
+        # Vectors belonging to a superseded model are left on disk but kept OUT of the
+        # in-memory matrices: search and clustering only ever read these, so holding
+        # the stale rows back is what guarantees a single cosine space while the
+        # re-index catches up — including across a restart, since the marker is in the
+        # DB. Each stale photo's rows are replaced (not deleted) as it is re-indexed.
+        stale_clip = self.stale_photo_ids(STALE_CLIP)
+        stale_face = self.stale_photo_ids(STALE_FACE)
         for pid, uid, blob in self._db.execute(
             "SELECT photo_id, user_id, clip FROM photo_embeddings"
         ):
+            if pid in stale_clip:
+                continue
             self._clip_ids.setdefault(uid, []).append(pid)
             self._clip_mat.setdefault(uid, []).append(_blob_to_f32(blob))
         for uid in list(self._clip_mat):
@@ -176,6 +226,8 @@ class Store:
         for fid, pid, uid, person, score, bbox, sharp, emb in self._db.execute(
             "SELECT id, photo_id, user_id, person_id, det_score, bbox, sharpness, embedding FROM faces"
         ):
+            if pid in stale_face:
+                continue
             try:
                 box = json.loads(bbox) if bbox else None
             except Exception:
@@ -202,6 +254,230 @@ class Store:
                 (photo_id, status, error, time.time()),
             )
             self._db.commit()
+
+    def stale_photo_ids(self, reason: str) -> set:
+        """Photos whose stored vectors of this kind came from a superseded model."""
+        with self._lock:
+            return {pid for pid, status in self._db.execute(
+                "SELECT photo_id, status FROM index_state WHERE status LIKE ?",
+                (STALE_PREFIX + "%",),
+            ) if reason in _stale_reasons(status)}
+
+    def stale_reasons(self, photo_id: str) -> set:
+        """Which kinds of this photo's vectors are waiting to be recomputed."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT status FROM index_state WHERE photo_id=?", (photo_id,)
+            ).fetchone()
+            return _stale_reasons(row[0]) if row else set()
+
+    def mark_stale(self, photo_ids, reason: str) -> int:
+        """Queue photos for re-index by adding `reason` to their index_state status.
+
+        Reasons accumulate rather than replace: a photo can be waiting on both the
+        CLIP and the face model at once, and clobbering one with the other would leave
+        half the stale vectors loaded into memory on the next boot. mark(pid,'done')
+        clears the whole set, which is correct — a re-index redoes every kind.
+        """
+        ids = list(photo_ids)
+        if not ids:
+            return 0
+        with self._lock:
+            have = {pid: status for pid, status in self._db.execute(
+                "SELECT photo_id, status FROM index_state")}
+            rows = []
+            for pid in ids:
+                reasons = _stale_reasons(have.get(pid)) | {reason}
+                rows.append((pid, _stale_status(reasons), "", time.time()))
+            self._db.executemany(
+                "INSERT INTO index_state(photo_id,status,error,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(photo_id) DO UPDATE SET status=excluded.status,"
+                "error=excluded.error,updated_at=excluded.updated_at",
+                rows,
+            )
+            self._db.commit()
+            return len(rows)
+
+    # ---- model fingerprints ----
+
+    def model_fingerprint(self, kind: str):
+        with self._lock:
+            row = self._db.execute(
+                "SELECT status FROM index_state WHERE photo_id=?", (_fp_key(kind),)
+            ).fetchone()
+            return row[0] if row and row[0] else None
+
+    def set_model_fingerprint(self, kind: str, fp: str):
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO index_state(photo_id,status,error,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(photo_id) DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",
+                (_fp_key(kind), fp, "", time.time()),
+            )
+            self._db.commit()
+
+    def sync_model_fingerprints(self, active: dict) -> dict:
+        """Reconcile the models running right now against the ones that produced the
+        stored vectors. Call once at boot, after load_models, before the pipeline starts.
+
+        `active` maps "clip"/"face" -> fingerprint, or None for a kind that is off or
+        failed to load this boot. A kind that isn't running is left completely alone:
+        its stored fingerprint and vectors stay valid for whenever it comes back.
+
+        Four outcomes per kind:
+          match     — the normal case. Nothing happens.
+          recorded  — nothing stored yet, but vectors of this kind are. The running
+                      model is assumed to be the one that produced them, which is true
+                      for every existing install, so this is silent and touches no data.
+          backfill  — nothing stored, no vectors either, yet photos are already marked
+                      done: this capability was off when they were indexed. Queue them,
+                      or it would stay permanently empty for the whole existing library.
+          reindex   — the model changed. Every photo holding vectors of that kind is
+                      marked for re-index and its old vectors are dropped from the
+                      in-memory matrices, so nothing mixes the two spaces. NOTHING is
+                      deleted from disk and the service still boots and serves; the
+                      normal backfill replaces the vectors photo by photo.
+        """
+        out = {}
+        for kind in FINGERPRINT_KINDS:
+            fp = active.get(kind)
+            if not fp:
+                out[kind] = {"state": "off", "stored": self.model_fingerprint(kind), "active": None}
+                continue
+            stored = self.model_fingerprint(kind)
+            if stored == fp:
+                out[kind] = {"state": "match", "stored": stored, "active": fp}
+                continue
+            reason = STALE_CLIP if kind == "clip" else STALE_FACE
+            if stored is None:
+                if self._vector_count(kind):
+                    self.set_model_fingerprint(kind, fp)
+                    out[kind] = {"state": "recorded", "stored": fp, "active": fp}
+                    continue
+                # No vectors of this kind at all. On a fresh index there is nothing to
+                # do; but photos already marked done were indexed with this capability
+                # switched off, and leaving them alone is what would make turning
+                # NOOK_ENABLE_CLIP back on look like it did nothing forever.
+                queued = self._queue_reindex(kind, reason, self._done_photo_ids())
+                if not queued:
+                    self.set_model_fingerprint(kind, fp)
+                    out[kind] = {"state": "recorded", "stored": fp, "active": fp}
+                    continue
+                self._pending_fp[kind] = fp
+                print(f"[store] {kind} was not part of the existing index - {queued} photos "
+                      f"queued to backfill it ({fp})", flush=True)
+                out[kind] = {"state": "backfill", "stored": None, "active": fp, "queued": queued}
+                continue
+            if kind == "clip":
+                ids = [r[0] for r in self._db.execute("SELECT photo_id FROM photo_embeddings")]
+            else:
+                ids = [r[0] for r in self._db.execute("SELECT DISTINCT photo_id FROM faces")]
+            queued = self._queue_reindex(kind, reason, ids)
+            self._pending_fp[kind] = fp
+            print("", flush=True)
+            print("=" * 78, flush=True)
+            # Printed strings stay pure ASCII: this goes to a Windows service log,
+            # where a non-cp1252 console encoding turns a stray em-dash into a
+            # UnicodeEncodeError and loses the whole warning.
+            print(f"  {kind.upper()} MODEL CHANGED - {queued} photos queued for re-index", flush=True)
+            print(f"    was: {stored}", flush=True)
+            print(f"    now: {fp}", flush=True)
+            print("  Vectors from two different models are not comparable, so the old ones", flush=True)
+            print("  are held out of search/grouping until each photo is redone. Nothing was", flush=True)
+            print("  deleted. This will take as long as a first index pass.", flush=True)
+            if kind == "face":
+                print("  People will regroup as this runs, and names you assigned may need to", flush=True)
+                print("  be set again - person groups are derived from the old embeddings.", flush=True)
+            print("=" * 78, flush=True)
+            print("", flush=True)
+            out[kind] = {"state": "reindex", "stored": stored, "active": fp, "queued": queued}
+        return out
+
+    def _vector_count(self, kind: str) -> int:
+        with self._lock:
+            table = "photo_embeddings" if kind == "clip" else "faces"
+            return self._db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+
+    def _done_photo_ids(self) -> list:
+        with self._lock:
+            return [r[0] for r in self._db.execute(
+                "SELECT photo_id FROM index_state WHERE status='done'")]
+
+    def _queue_reindex(self, kind: str, reason: str, ids) -> int:
+        """Mark photos for re-index and pull their old vectors out of memory.
+
+        Idempotent across restarts: if a marker for this reason already exists the
+        migration is mid-flight, and re-marking would drag photos that have already
+        been redone under the new model back through the queue.
+        """
+        already = self.stale_photo_ids(reason)
+        if already:
+            return len(already)
+        n = self.mark_stale(ids, reason)
+        self._evict(ids, kind)
+        return n
+
+    def _evict(self, photo_ids, kind: str):
+        """Drop these photos' vectors of one kind from the in-memory matrices.
+
+        Only needed on the boot where a change is first detected — Store.__init__ has
+        already loaded them by the time load_models has run. Later boots skip them in
+        _load_into_memory instead. Assumes the DB rows stay put.
+        """
+        drop = set(photo_ids)
+        with self._lock:
+            if kind == "clip":
+                for uid in list(self._clip_ids):
+                    ids = self._clip_ids[uid]
+                    keep = [i for i, pid in enumerate(ids) if pid not in drop]
+                    if len(keep) == len(ids):
+                        continue
+                    self._clip_ids[uid] = [ids[i] for i in keep]
+                    mat = self._clip_mat.get(uid)
+                    if mat is not None and mat.size:
+                        self._clip_mat[uid] = mat[keep] if keep else np.zeros((0, mat.shape[1]), np.float32)
+            else:
+                for uid in list(self._face_rows):
+                    rows = self._face_rows[uid]
+                    keep = [i for i, r in enumerate(rows) if r["photo_id"] not in drop]
+                    if len(keep) == len(rows):
+                        continue
+                    self._face_rows[uid] = [rows[i] for i in keep]
+                    mat = self._face_mat.get(uid)
+                    if mat is not None and mat.size:
+                        self._face_mat[uid] = mat[keep] if keep else np.zeros((0, mat.shape[1]), np.float32)
+
+    def commit_pending_fingerprints(self) -> list:
+        """Record a new fingerprint once the re-index it triggered has drained.
+
+        Deferring the write until then is what makes an interrupted migration resume
+        rather than be forgotten half-done. The test is per-kind and exact — "no photo
+        is still marked stale for this reason" — deliberately NOT "the pipeline's queue
+        is empty": a photo whose thumbnail is missing is marked `skipped`, which keeps
+        it out of indexed_ids and therefore in the queue on every single sweep, so on a
+        library with one thumbless photo that queue never empties.
+        """
+        if not self._pending_fp:
+            return []
+        done = []
+        for kind, fp in list(self._pending_fp.items()):
+            reason = STALE_CLIP if kind == "clip" else STALE_FACE
+            if self.stale_photo_ids(reason):
+                continue  # still working through the queue
+            self.set_model_fingerprint(kind, fp)
+            del self._pending_fp[kind]
+            done.append(kind)
+            print(f"[store] {kind} re-index complete, fingerprint now {fp}", flush=True)
+        return done
+
+    def model_state(self) -> dict:
+        """Fingerprints + any in-flight migration, for /health."""
+        with self._lock:
+            return {
+                kind: {"fingerprint": self.model_fingerprint(kind),
+                       "reindexing": kind in self._pending_fp}
+                for kind in FINGERPRINT_KINDS
+            }
 
     def counts(self) -> dict:
         # The lock is not optional: `_db` is shared by the poll thread and every HTTP
@@ -233,10 +509,17 @@ class Store:
                 self._clip_mat[user_id] = row if mat is None or mat.size == 0 else np.vstack([mat, row])
 
     def add_faces(self, photo_id: str, user_id: str, faces: list):
-        """Insert faces, assigning a stable person_id by incremental single-link:
-        a new face joins the person of its nearest existing face above threshold,
-        else starts a new person. Stable ids keep user-assigned names intact."""
+        """Replace this photo's faces, assigning a stable person_id by incremental
+        single-link: a new face joins the person of its nearest existing face above
+        threshold, else starts a new person. Stable ids keep user-assigned names intact.
+
+        REPLACE, not append: face ids are fresh uuids, so re-indexing a photo that
+        already had faces would otherwise double them. Normally there is nothing to
+        drop (the pipeline only visits un-indexed photos); after a face-model change
+        there is, and this is what swaps the old vectors out one photo at a time.
+        """
         with self._lock:
+            self.drop_photo_faces(photo_id)
             existing = self._face_mat.get(user_id)
             rows = self._face_rows.setdefault(user_id, [])
             for f in faces:
@@ -418,6 +701,32 @@ class Store:
             self._db.commit()
             return deleted
 
+    def drop_photo_faces(self, photo_id: str) -> int:
+        """Delete one photo's face rows, in the DB and in memory.
+
+        DERIVED DATA ONLY, and unconditionally recomputable from the thumbnail. Used
+        when a photo is (re-)indexed, so its faces are replaced rather than duplicated.
+        Cheap thanks to the faces_photo index. Any `people` row left with no faces is
+        harmless — people() derives its list from the face rows themselves.
+        """
+        with self._lock:
+            cur = self._db.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
+            n = cur.rowcount or 0
+            if n:
+                self._db.commit()
+                self._evict([photo_id], "face")
+            return n
+
+    def drop_photo_clip(self, photo_id: str) -> int:
+        """Delete one photo's CLIP vector, in the DB and in memory. Derived data only."""
+        with self._lock:
+            cur = self._db.execute("DELETE FROM photo_embeddings WHERE photo_id=?", (photo_id,))
+            n = cur.rowcount or 0
+            if n:
+                self._db.commit()
+                self._evict([photo_id], "clip")
+            return n
+
     def remove_photo(self, photo_id: str):
         """Drop all index rows for a photo (deleted/purged on the Node side)."""
         with self._lock:
@@ -441,16 +750,29 @@ class Store:
 
     # ---- queries ----
 
-    def search(self, user_id: str, query_vec: np.ndarray, text: str, limit: int = 60) -> list:
+    def search(self, user_id: str, query_vec, text: str, limit: int = 60) -> list:
+        """Rank photos for a query. `query_vec` may be None — on a host with no CLIP
+        (disabled, or it failed to load) the semantic half is simply skipped and the
+        place-label match below still answers "paris" or "iceland". A text-only search
+        box is a lot better than a 500."""
         with self._lock:
             mat = self._clip_mat.get(user_id)
             ids = self._clip_ids.get(user_id, [])
             scores: dict[str, float] = {}
-            if mat is not None and mat.shape[0] > 0:
-                sims = mat @ np.asarray(query_vec, dtype=np.float32)
-                for pid, s in zip(ids, sims):
-                    if s >= CLIP_FLOOR:
-                        scores[pid] = float(s)
+            if query_vec is not None and mat is not None and mat.shape[0] > 0:
+                q = np.asarray(query_vec, dtype=np.float32).reshape(-1)
+                # Last line of defence against a mixed vector space: a stored matrix of
+                # a different width can only mean vectors from another model slipped
+                # past the fingerprint check, and the matmul would raise. Refuse to
+                # guess instead.
+                if mat.shape[1] != q.shape[0]:
+                    print(f"[store] search skipped: stored CLIP dim {mat.shape[1]} != "
+                          f"query dim {q.shape[0]}", flush=True)
+                else:
+                    sims = mat @ q
+                    for pid, s in zip(ids, sims):
+                        if s >= CLIP_FLOOR:
+                            scores[pid] = float(s)
             # Named-place text match: boost photos whose place label contains a token.
             tokens = [t for t in text.lower().split() if len(t) >= 3]
             if tokens:

@@ -10,8 +10,14 @@ Env:
   NOOK_INDEX_DIR       where ai-index.sqlite lives            (default: DATA_DIR/ai)
   NOOK_INDEXER_PORT    listen port                            (default: 8091)
   NOOK_INDEXER_SECRET  shared secret required on every call   (default: dev value)
+  NOOK_ENABLE_CLIP     "0" to disable semantic search         (default: on)
   NOOK_ENABLE_FACES    "0" to disable face indexing           (default: on)
   NOOK_INDEX_POLL_SEC  db.json poll interval seconds          (default: 15)
+
+Every AI capability is optional and independently degradable: with all of them off
+(or unable to load on this hardware) the sidecar still runs, still tracks the index,
+and the app still has thumbnails, albums, dates and browsing. GET /health reports
+exactly which ones are live.
 """
 import json
 import os
@@ -65,6 +71,7 @@ DATA_DIR = os.path.abspath(DATA_DIR)
 INDEX_DIR = os.environ.get("NOOK_INDEX_DIR") or os.path.join(DATA_DIR, "ai")
 PORT = int(os.environ.get("NOOK_INDEXER_PORT", "8091"))
 SECRET = os.environ.get("NOOK_INDEXER_SECRET", "nook-indexer-dev")
+ENABLE_CLIP = os.environ.get("NOOK_ENABLE_CLIP", "1") != "0"
 ENABLE_FACES = os.environ.get("NOOK_ENABLE_FACES", "1") != "0"
 POLL_SEC = int(os.environ.get("NOOK_INDEX_POLL_SEC", "15"))
 
@@ -77,12 +84,33 @@ PLACES = None
 PIPE = None
 
 
+def _capabilities() -> dict:
+    """What this host can actually do right now, for /health. `search` is true when a
+    text query can return anything at all — place labels match without CLIP."""
+    return {
+        "clip": CLIP is not None,
+        "faces": FACES is not None,
+        "places": PLACES is not None,
+        "semanticSearch": CLIP is not None,
+        "search": CLIP is not None or PLACES is not None,
+    }
+
+
 def _init():
     global STORE, CLIP, FACES, PLACES, PIPE
     os.makedirs(INDEX_DIR, exist_ok=True)
-    print(f"[nook-indexer] data={DATA_DIR} index={INDEX_DIR} port={PORT} faces={ENABLE_FACES}", flush=True)
+    print(f"[nook-indexer] data={DATA_DIR} index={INDEX_DIR} port={PORT} "
+          f"clip={ENABLE_CLIP} faces={ENABLE_FACES}", flush=True)
     STORE = Store(os.path.join(INDEX_DIR, "ai-index.sqlite"))
-    CLIP, FACES, PLACES = load_models(enable_faces=ENABLE_FACES)
+    CLIP, FACES, PLACES = load_models(enable_clip=ENABLE_CLIP, enable_faces=ENABLE_FACES)
+    # Which models produced the stored vectors? Must run after the models are up (their
+    # fingerprints are the input) and before the pipeline starts (it works off the
+    # re-index queue this may fill). A kind that isn't loaded this boot passes None and
+    # is left untouched — a disabled model must not invalidate its own vectors.
+    STORE.sync_model_fingerprints({
+        "clip": CLIP.fingerprint if CLIP is not None else None,
+        "face": FACES.fingerprint if FACES is not None else None,
+    })
     PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, poll_interval=POLL_SEC)
     PIPE.start()
 
@@ -135,8 +163,17 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path == "/health":
+            caps = _capabilities()
             return self._send(200, {
-                "ok": True, "faces": FACES is not None, "places": PLACES is not None,
+                # `faces`/`places` stay top-level: the Node server and the web app
+                # already read them from here.
+                "ok": True, "faces": caps["faces"], "places": caps["places"],
+                "clip": caps["clip"], "capabilities": caps,
+                "providers": {
+                    "clip": getattr(CLIP, "provider", None),
+                    "faces": getattr(FACES, "provider", None),
+                },
+                "models": STORE.model_state(),
                 "counts": STORE.counts(), "status": PIPE.status, "prune": PIPE.prune,
             })
         if not self._authed():
@@ -164,9 +201,20 @@ class Handler(BaseHTTPRequestHandler):
             uid = body.get("userId", "_")
             limit = int(body.get("limit", 60))
             if not q:
-                return self._send(200, {"results": []})
-            qvec = CLIP.embed_text(q)
-            return self._send(200, {"results": STORE.search(uid, qvec, q, limit)})
+                return self._send(200, {"results": [], "semantic": CLIP is not None})
+            # No CLIP on this host → no query vector. Search still runs: store.search
+            # matches place labels, so "paris" works and anything else comes back empty
+            # instead of 500-ing. `semantic` tells the caller which kind of answer it is.
+            qvec = None
+            if CLIP is not None:
+                try:
+                    qvec = CLIP.embed_text(q)
+                except Exception as e:
+                    print("[nook-indexer] text embed failed:", e, flush=True)
+            return self._send(200, {
+                "results": STORE.search(uid, qvec, q, limit),
+                "semantic": qvec is not None,
+            })
         if u.path == "/faces/prune":
             # Maintenance: re-measure stored face crops, delete the blurry/tiny ones and
             # re-group the rest. Derived data only — original photos are never touched.

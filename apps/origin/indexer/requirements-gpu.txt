@@ -1,0 +1,70 @@
+# nook-indexer — OPT-IN NVIDIA GPU runtime (Linux x86_64 / Windows x64 only).
+#
+# NOT installable in the same pip pass as requirements.txt. Two steps, in this order:
+#
+#   pip install -r requirements.txt
+#   pip install --force-reinstall --no-deps -r requirements-gpu.txt
+#
+# `setup-indexer.sh --gpu` does both and then prints the providers it actually got.
+#
+# ── WHY IT HAS TO BE A SECOND PASS ───────────────────────────────────────────────
+# `onnxruntime` (CPU) and `onnxruntime-gpu` are different distributions that unpack
+# into the SAME `onnxruntime/` directory. pip sees two unrelated names, detects no
+# conflict, and whichever it writes LAST wins. insightface hard-depends on the CPU
+# `onnxruntime`, so it is always dragged in — meaning a single
+# `pip install -r requirements.txt -r requirements-gpu.txt` gives you both, in
+# undefined order, and roughly half the time the CPU wheel lands last and silently
+# strips CUDAExecutionProvider from every model.
+#
+# So: install the portable set first, then write the GPU runtime over it LAST.
+#   --force-reinstall  guarantees the GPU DLLs are the ones on disk, whatever the
+#                      previous state was. Order-independent, unlike the old
+#                      `pip uninstall -y onnxruntime` hack this replaces — that one
+#                      could delete files the GPU distribution had already taken over,
+#                      because both RECORDs list the same paths.
+#   --no-deps          keeps the CPU `onnxruntime` distribution *registered*, so
+#                      insightface's requirement stays satisfied and `pip check`
+#                      passes. Only its files get overwritten, which is the point.
+#
+# THIS IS FRAGILE BY CONSTRUCTION. Any later `pip install -U onnxruntime`,
+# `pip install -r requirements.txt`, or `pip uninstall onnxruntime` re-breaks it: the
+# symptom is never an error, just every model quietly running on CPU. Re-run the
+# second step to fix it, and check with:
+#   python -c "import onnxruntime as o; print(o.get_available_providers())"
+#
+# ── WHY 1.22.0 AND NOT LATEST ────────────────────────────────────────────────────
+# This is the version the reference deployment runs (Windows + RTX 4060). Two reasons
+# not to float it:
+#  1. CUDA 12 -> 13. From 1.24 the [cuda,cudnn] extras resolve nvidia-cuda-runtime~=13
+#     and nvidia-cudnn-cu13 instead of the cu12 packages, i.e. a whole-toolkit
+#     migration, not a patch bump.
+#  2. The [cuda,cudnn] extras are load-bearing on Windows. They provide the
+#     nvidia/*/bin wheels that main.py registers with the DLL loader BEFORE the first
+#     ORT session is created (see _register_cuda_dlls). Without that registration
+#     cuDNN cannot find its lazily-loaded sublibraries and every convolution fails
+#     with CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED — CLIP and faces break at inference
+#     time, not at import time, so the failure looks like a model bug.
+# 1.22.0 ships cp310-cp313 (linux x86_64 + win_amd64). On Python 3.14 you must move to
+# 1.27.0, which is the newest release with a complete Linux wheel set — 1.28.0's Linux
+# wheels were still cp311-only as of 2026-07-25.
+
+onnxruntime-gpu[cuda,cudnn]==1.22.0
+
+# ── OTHER ACCELERATORS: same rule, different package, no file needed ─────────────
+# All of these are mutually exclusive with the line above AND with the plain
+# `onnxruntime` — one runtime per venv, always installed last. models.py detects
+# whichever one you chose (CUDA > DirectML > CoreML > OpenVINO > CPU) and needs no
+# configuration; it cannot enable a provider the installed wheel doesn't contain.
+#
+#   Windows, Intel/AMD/any D3D12 GPU:
+#     pip install --force-reinstall --no-deps onnxruntime-directml==1.24.4
+#     (win_amd64 only, and four minor versions behind the CPU wheel)
+#
+#   Linux/Windows x86_64, Intel CPU/iGPU/NPU:
+#     pip install --force-reinstall --no-deps onnxruntime-openvino==1.24.1
+#
+#   Apple Silicon: nothing to install. CoreMLExecutionProvider is already in the
+#     plain `onnxruntime` macOS arm64 wheel from requirements.txt.
+#
+#   Raspberry Pi / aarch64: nothing to install, and nothing available. There is no
+#     GPU/NPU-accelerated onnxruntime wheel for the Pi's SoC; it is CPU only.

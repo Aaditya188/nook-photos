@@ -1,29 +1,58 @@
-# nook-indexer — Python deps.
+# nook-indexer — Python deps. THE PORTABLE INSTALL.
 #
-# These pins describe the LIVE deployment: Windows + RTX 4060, all inference through
-# onnxruntime-gpu. The CPU and GPU wheels install the SAME `onnxruntime` package, so
-# letting the CPU one in silently strips CUDAExecutionProvider and every model drops to
-# CPU — which is why the runtime is pinned exactly and why the GPU build of fastembed is
-# used. On a CPU-only host (e.g. a Raspberry Pi 5, which has no onnxruntime-gpu wheel)
-# swap fastembed-gpu -> fastembed and onnxruntime-gpu[cuda,cudnn] -> onnxruntime.
+#   pip install -r requirements.txt
 #
-# AFTER ANY INSTALL RUN:  pip uninstall -y onnxruntime
-# insightface declares the CPU `onnxruntime` as a hard dependency and pip honours it,
-# clobbering the GPU runtime. setup-indexer.sh does this for you.
+# must succeed on every target: Raspberry Pi OS 64-bit (linux aarch64), Apple Silicon,
+# old x86 Windows/Linux, and NVIDIA desktops. It gives you CPU inference everywhere —
+# plus CoreML on Apple Silicon for free, because that provider is compiled into the
+# stock macOS wheel. GPU is a deliberate SECOND step: see requirements-gpu.txt.
+#
+# ── WHY THERE IS NO onnxruntime LINE IN THIS FILE ────────────────────────────────
+# Every accelerator is a DIFFERENT PyPI distribution that unpacks into the SAME
+# `onnxruntime/` import package:
+#     onnxruntime            CPU + CoreML   — linux x86_64/aarch64, macOS arm64, win
+#     onnxruntime-gpu        CUDA/TensorRT  — x86_64 ONLY (no aarch64 or macOS wheel
+#                                             has ever been published, in any version)
+#     onnxruntime-directml   Windows D3D12  — win_amd64 only
+#     onnxruntime-openvino   Intel CPU/iGPU — x86_64 only
+# pip sees four unrelated names, detects no conflict, and lets whichever is written
+# LAST silently overwrite the other's DLLs. Naming a runtime here would also fight
+# insightface, which hard-depends on the CPU `onnxruntime` unconditionally — no extra,
+# no environment marker, still true in 1.0.1. So this file names none of them and lets
+# insightface + fastembed converge on the one runtime that has a wheel for every
+# target. Result: nothing to uninstall afterwards, and `pip check` passes.
+#
+# Environment markers cannot solve this. PEP 508 markers can express OS / CPU / Python
+# version, but there is no marker for "this machine has an NVIDIA GPU" — and a marker on
+# our line could not cancel insightface's dependency anyway. Hardware selection has to
+# be an explicit user choice, which is what the second file is.
+#
+# ── PLATFORM NOTES (verified against PyPI 2026-07-25) ───────────────────────────
+#  * Python 3.11+ required. onnxruntime 1.24.1+ ships cp311–cp314 only; on 3.10 pip
+#    silently resolves back to onnxruntime 1.23.x, which works but is untested here.
+#  * 32-bit Raspberry Pi OS is NOT supported — no armv7l/armhf onnxruntime wheel has
+#    ever existed. Use the 64-bit OS.
+#  * Apple Silicon needs macOS 14+ (the wheel is tagged macosx_14_0_arm64) and gets
+#    CoreMLExecutionProvider from this plain install, no extra package.
+#  * Intel Macs are capped at onnxruntime 1.23.2 — macOS x86_64 wheels were dropped
+#    after it. pip resolves that for you; nothing newer will ever install.
+#  * On a Pi, the face pass (buffalo_l) is ~15-20x the cost of CLIP and is what makes
+#    indexing crawl. NOOK_ENABLE_FACES=0 is the setting that matters, not CLIP.
+#  * Headless Linux needs libgl1 + libglib2.0-0 from apt: insightface imports cv2,
+#    which links libGL at import time. setup-indexer.sh installs them.
 
-# CLIP (semantic search). The -gpu build is the one that depends on onnxruntime-gpu;
-# plain `fastembed` pulls the CPU runtime back in.
-fastembed-gpu>=0.8
-# Face detection + embedding (RetinaFace-10G + ArcFace w600k_r50, buffalo_l pack).
-# Also brings opencv-python and scikit-image along transitively — don't add a second
-# opencv (e.g. -headless): both wheels install the same `cv2` package.
-insightface>=0.7
-# Offline reverse geocoding (GPS -> city/country)
+# CLIP (semantic search). Plain fastembed — it depends on the portable `onnxruntime`
+# and picks CUDA up at runtime via get_available_providers(), so the fastembed-gpu
+# variant buys nothing and is another same-import-name package to collide with.
+fastembed>=0.8
+# Face detection + embedding: buffalo_l = det_10g (SCRFD-10GF) + w600k_r50 (ArcFace).
+# 1.0.1 is the first release with a py3-none-any wheel — 0.7.3 was sdist-only and
+# cythonised a C++ extension, which is what used to demand a compiler on a Pi. Also
+# brings opencv-python and scikit-image along transitively — don't add a second opencv
+# (e.g. -headless): both wheels install the same `cv2` package.
+insightface>=1.0.1
+# Offline reverse geocoding (GPS -> city/country). sdist-only but pure Python.
 reverse_geocoder>=1.5
-# Shared runtime — GPU. Pinned exactly to what the service runs; the [cuda,cudnn] extras
-# provide the nvidia/*/bin wheels that main.py registers with the Windows DLL loader
-# before the first ORT session is created.
-onnxruntime-gpu[cuda,cudnn]==1.22.0
 numpy>=1.26
 pillow>=10.0
 # Agglomerative face clustering in store.recluster()

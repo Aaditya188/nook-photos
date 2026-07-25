@@ -3,6 +3,10 @@
 Polls the Node server's `db.json` (read-only) for `complete`, non-deleted photos
 that aren't indexed yet, reads each thumbnail, and writes CLIP/faces/place rows.
 Also prunes index rows for photos that were deleted or purged on the Node side.
+
+Every model is optional and may be None (disabled by env, or it failed to load on
+this host): each stage is skipped independently, and a photo with no model at all is
+still marked done so the queue drains instead of retrying forever.
 """
 import json
 import os
@@ -10,7 +14,7 @@ import threading
 import time
 
 from models import load_bgr, face_sharpness
-from store import face_quality_ok
+from store import face_quality_ok, STALE_CLIP, STALE_FACE
 
 # Face-detection noise filters: skip low-confidence detections and tiny
 # background faces (fraction of the image's larger side) so they don't spawn
@@ -90,6 +94,7 @@ class Pipeline:
         self.status["pending"] = len(todo)
         if not todo:
             self.status["indexing"] = False
+            self._commit_migrations()  # may recluster and clear _dirty itself
             # Queue just drained and new faces arrived since the last grouping: run the
             # authoritative agglomerative recluster once (not per-sweep — it's O(n^2)).
             if self._dirty:
@@ -105,6 +110,24 @@ class Pipeline:
             self.status["pending"] = len(todo) - self.status["done"] if False else max(0, self.status["pending"] - 1)
         self._dirty = True
         self.status["indexing"] = False
+        self._commit_migrations()
+
+    def _commit_migrations(self):
+        """Close out any model migration whose re-index has finished.
+
+        Called from both ends of _tick, not just the drained branch, because the queue
+        is never empty on a library holding any thumbless photo — those stay `skipped`,
+        which keeps them out of indexed_ids and so back in `todo` on every sweep.
+
+        A finished FACE migration then has to be followed by the authoritative
+        recluster: every face was re-embedded one photo at a time, so all that exists
+        at this point is add_faces' provisional single-link grouping. Free (an early
+        return) when no migration is pending, which is every ordinary sweep.
+        """
+        if "face" in self.store.commit_pending_fingerprints():
+            print("[pipeline] face model migration finished, regrouping people", flush=True)
+            self._recluster_all()
+            self._dirty = False
 
     def start_prune(self) -> bool:
         """Begin a face-quality prune on a background thread. False if one is running.
@@ -236,23 +259,41 @@ class Pipeline:
         }
 
     def _index_photo(self, p):
+        """Index one photo: every stage that has a model, then mark it done.
+
+        This is deliberately all-or-nothing per photo rather than per stage. A photo
+        queued by a CLIP-model change therefore has its faces recomputed too, which is
+        wasted work (faces are the expensive stage) but always *correct* — add_faces
+        replaces, so nothing duplicates or mixes. Making it per-stage would need index
+        state per kind, and there is no way to tell "no face in this photo" from "faces
+        never ran" without it, so the cheap correct thing wins.
+        """
         pid = p["id"]
         uid = p.get("userId") or "_"
         thumb = os.path.join(self.thumbs, pid + ".jpg")
         if not os.path.exists(thumb):
+            # Nothing to compute from. If this photo was queued by a model change, its
+            # old vectors can never be recomputed — drop them, because mark() below
+            # clears the stale marker that was keeping them out of search/grouping.
+            stale = self.store.stale_reasons(pid)
+            if STALE_CLIP in stale:
+                self.store.drop_photo_clip(pid)
+            if STALE_FACE in stale:
+                self.store.drop_photo_faces(pid)
             self.store.mark(pid, "skipped", "no thumb")
             return
         try:
-            vec = self.clip.embed_image(thumb)
-            if vec is not None:
-                self.store.add_clip(pid, uid, vec)
+            if self.clip is not None:
+                vec = self.clip.embed_image(thumb)
+                if vec is not None:
+                    self.store.add_clip(pid, uid, vec)
 
             if self.faces is not None:
                 bgr = load_bgr(thumb)
+                kept = []
                 if bgr is not None:
                     ih, iw = bgr.shape[0], bgr.shape[1]
                     faces = self.faces.detect(bgr)
-                    kept = []
                     for f in faces:
                         x1, y1, x2, y2 = f["bbox"]
                         bw = max(0.0, (x2 - x1) / iw)
@@ -270,8 +311,13 @@ class Pipeline:
                         if not face_quality_ok(f["det_score"], f["sharpness"], min(bw * iw, bh * ih)):
                             continue
                         kept.append(f)
-                    if kept:
-                        self.store.add_faces(pid, uid, kept)
+                if kept:
+                    self.store.add_faces(pid, uid, kept)  # replaces any earlier ones
+                else:
+                    # No usable face, or the thumb wouldn't decode. On a re-index that
+                    # still has to clear what was stored before, so a photo never keeps
+                    # faces produced by a superseded model. No-op the first time round.
+                    self.store.drop_photo_faces(pid)
 
             if self.places is not None:
                 lat, lon = p.get("latitude"), p.get("longitude")

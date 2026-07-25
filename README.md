@@ -17,7 +17,7 @@ This is an npm-workspaces monorepo:
 | Package | What it is |
 |---|---|
 | [`packages/core`](packages/core) | Framework-agnostic TypeScript shared by every client: typed `NookClient` for the full server API, data types, TanStack Query hooks, MD3 theme tokens, formatting helpers. No DOM or Expo imports — platform storage is injected. |
-| [`apps/mobile`](apps/mobile) | **The phone app** — Expo (SDK 57) + Expo Router, runs in Expo Go. Zoomable date-grouped photo grid, backup & sync engine (diff against the server, thumbnail + original upload, resumable), custom video player with buffering states, biometric-gated private albums, people/places/search, light + dark themes. |
+| [`apps/mobile`](apps/mobile) | **The phone app** — Expo (SDK 54) + Expo Router, runs in Expo Go. Zoomable date-grouped photo grid, backup & sync engine (diff against the server, thumbnail + original upload, resumable), custom video player with buffering states, biometric-gated private albums, people/places/search, light + dark themes. |
 | [`apps/web`](apps/web) | **The web dashboard** — React 19 + Vite + react-router + TanStack Query. Chunked **virtual scroller** (the DOM holds a few hundred tiles even in a 10k+ photo library, with a full-height scrollbar you can drag anywhere), authed blob thumbnail cache, progressive photo viewer with server-side HEIC decode, range-streamed video, multi-select with client-side ZIP download, password-locked Hidden / Recently Deleted albums behind a lock wall, dark / light / system theme, pinch or Ctrl-scroll grid density zoom. |
 | [`apps/webui`](apps/webui) | The original dependency-free vanilla-JS dashboard, kept fully working as the battle-tested fallback. Same feature set as `apps/web`. |
 | [`apps/server`](apps/server) | **Performance gateway** — Fastify + sharp. Size-bucketed thumbnails resized on the fly and disk-cached (`?w=128…1024`), HTTP-Range streaming for video/originals, server-side HEIC → JPEG for full-resolution viewing, transparent proxy to the origin API for everything else, and static hosting for the web dashboard. Media auth accepts `?token=` for `<img>`/`<video>` elements that can't send headers. |
@@ -59,7 +59,33 @@ cd apps/origin
 node server.js      # listens on :8080; library lives in ./data (NOOK_DATA_DIR to change)
 ```
 
-Optional AI (semantic search, faces, places): see [`apps/origin/indexer`](apps/origin/indexer) — a Python sidecar the server auto-detects on :8091.
+### Optional AI (semantic search, faces, places)
+
+A Python sidecar the server auto-detects on :8091. Entirely optional — without it you still get thumbnails, albums, dates and browsing.
+
+```bash
+cd apps/origin/indexer
+./setup-indexer.sh          # venv + deps + model download; --gpu for NVIDIA (see below)
+python main.py              # or install the systemd unit the script prints
+```
+
+Requires **Python 3.11+**. `pip install -r requirements.txt` is the portable install and works as-is on Raspberry Pi OS 64-bit (aarch64), Apple Silicon, and old x86 Windows/Linux, using CPU inference — plus Apple's CoreML automatically on Apple Silicon.
+
+GPU is a deliberate opt-in, because each accelerator is a *different* PyPI package that overwrites the same `onnxruntime` files, so exactly one can be installed and it has to be written last:
+
+| Hardware | Extra step after `requirements.txt` |
+|---|---|
+| NVIDIA (Linux/Windows x86_64) | `pip install --force-reinstall --no-deps -r requirements-gpu.txt` |
+| Windows + Intel/AMD GPU | `pip install --force-reinstall --no-deps onnxruntime-directml==1.24.4` |
+| Intel CPU/iGPU (x86_64) | `pip install --force-reinstall --no-deps onnxruntime-openvino==1.24.1` |
+| Apple Silicon | nothing — CoreML is already in the portable install |
+| Raspberry Pi / aarch64 | nothing — CPU only; no accelerated wheel exists for its SoC |
+
+`requirements-gpu.txt` documents the whole trap in detail. The indexer picks the best provider it finds at startup (CUDA > DirectML > CoreML > OpenVINO > CPU) and logs which one it actually got; `curl localhost:8091/health` reports the live capabilities.
+
+Known limits: 32-bit Raspberry Pi OS is unsupported (no `onnxruntime` wheel has ever existed for armv7l), Apple Silicon needs macOS 14+, and Intel Macs are capped at `onnxruntime` 1.23.2.
+
+On slow hardware, face detection is by far the most expensive stage — set `NOOK_ENABLE_FACES=0` (and `NOOK_ENABLE_CLIP=0` to drop semantic search too). Either can be turned back on later; the indexer notices and backfills the existing library.
 
 ### Gateway (thumbnails, streaming, serves the web app)
 
