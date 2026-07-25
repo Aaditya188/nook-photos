@@ -68,7 +68,6 @@ export default function LibraryScreen() {
       </View>
       {!selectMode ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
-          <QuickLink icon="auto-awesome" label="Recap" onPress={() => router.push('/recap')} />
           <QuickLink icon="luggage" label="Trips" onPress={() => router.push('/trips')} />
           <QuickLink icon="map" label="Map" onPress={() => router.push('/map')} />
           <QuickLink icon="people" label="People" onPress={() => router.push('/people')} />

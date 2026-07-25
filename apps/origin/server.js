@@ -814,6 +814,27 @@ async function handleMergePeople(req, res, user) {
   sendJson(res, 200, { ok: true, moved: (out && out.moved) || 0 });
 }
 
+/**
+ * Maintenance: drop stored faces that fail the sharpness/size gate, then re-cluster
+ * what survives. Faces added before the gate existed have no sharpness score, so they
+ * are grandfathered past it until this runs — this is what collapses a library that
+ * accumulated blurry non-faces into hundreds of spurious "people".
+ *
+ * Derived data only: face rows are rebuildable by re-indexing, and originals are never
+ * touched. Global (not per-user), so admin-only. Takes minutes on a large library.
+ */
+async function handlePruneFaces(req, res, user) {
+  requireAdmin(user);
+  let out;
+  try {
+    out = await indexerRequest('POST', '/faces/prune', {});
+  } catch (e) {
+    throw httpError(503, 'the face indexer is not available');
+  }
+  if (out && out.error) throw httpError(409, out.error);
+  sendJson(res, 200, Object.assign({ ok: true }, out || {}));
+}
+
 async function handlePlaces(res, user) {
   let places;
   try {
@@ -1697,6 +1718,8 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/places' && req.method === 'GET') return handlePlaces(res, user);
   if (pathname === '/api/place-photos' && req.method === 'GET') return handlePlacePhotos(res, user, query.label || '');
   if (pathname === '/api/people/merge' && req.method === 'POST') return handleMergePeople(req, res, user);
+  // Must precede the /api/people/:id match below, or 'prune' reads as a personId.
+  if (pathname === '/api/people/prune' && req.method === 'POST') return handlePruneFaces(req, res, user);
   const personMatch = /^\/api\/people\/([A-Za-z0-9_-]+)(?:\/(photos))?$/.exec(pathname);
   if (personMatch) {
     const personId = personMatch[1];

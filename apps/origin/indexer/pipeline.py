@@ -8,7 +8,8 @@ import json
 import os
 import threading
 
-from models import load_bgr
+from models import load_bgr, face_sharpness
+from store import face_quality_ok
 
 # Face-detection noise filters: skip low-confidence detections and tiny
 # background faces (fraction of the image's larger side) so they don't spawn
@@ -18,7 +19,7 @@ FACE_MIN_SIZE = float(os.environ.get("NOOK_FACE_MIN_SIZE", "0.05"))
 
 
 class Pipeline:
-    def __init__(self, data_dir, store, clip, faces, places, ocr=None, poll_interval=15):
+    def __init__(self, data_dir, store, clip, faces, places, poll_interval=15):
         self.data_dir = data_dir
         self.db_path = os.path.join(data_dir, "db.json")
         self.thumbs = os.path.join(data_dir, "thumbs")
@@ -26,10 +27,10 @@ class Pipeline:
         self.clip = clip
         self.faces = faces
         self.places = places
-        self.ocr = ocr
         self.poll_interval = poll_interval
         self._stop = threading.Event()
         self._dirty = False  # new faces added since the last authoritative recluster
+        self._maint = threading.Lock()  # one face-quality maintenance pass at a time
         self.status = {"indexing": False, "done": 0, "pending": 0, "last_error": ""}
 
     def start(self):
@@ -85,10 +86,6 @@ class Pipeline:
             if self._dirty:
                 self._recluster_all()
                 self._dirty = False
-            # Backfill OCR onto photos indexed before OCR was enabled — a batch per
-            # idle tick so it never blocks new-photo indexing.
-            if self.ocr is not None:
-                self._ocr_backfill()
             return
         self.status["indexing"] = True
         for p in todo:
@@ -100,17 +97,78 @@ class Pipeline:
         self._dirty = True
         self.status["indexing"] = False
 
-    def _ocr_backfill(self):
-        batch = self.store.photos_missing_ocr(limit=40)
-        if not batch:
-            return
-        for pid, uid in batch:
-            if self._stop.is_set():
-                break
-            thumb = os.path.join(self.thumbs, pid + ".jpg")
-            text = self.ocr.read(thumb) if os.path.exists(thumb) else ""
-            self.store.add_ocr(pid, uid or "_", text)
-        print(f"[pipeline] OCR backfill: {len(batch)} photos", flush=True)
+    def prune_low_quality_faces(self) -> dict:
+        """Maintenance: re-measure every stored face against the current quality gate,
+        delete the ones that fail, then re-group the survivors.
+
+        Faces indexed before the sharpness gate existed include blurry and tiny crops,
+        which is what left the library with hundreds of duplicate/junk "people". This
+        re-reads each thumbnail once, scores every face crop, drops the failures, and
+        hands the survivors to the existing agglomerative recluster. Idempotent — run it
+        again after changing NOOK_FACE_MIN_SHARPNESS / NOOK_FACE_MIN_CROP_PX.
+
+        DESTRUCTIVE TO DERIVED DATA ONLY: it deletes face rows from ai-index.sqlite,
+        which are recomputed from thumbnails by a re-index. Original photos, thumbnails
+        and the Node server's db.json are opened read-only or not at all, and are NEVER
+        modified or deleted.
+        """
+        if not self._maint.acquire(blocking=False):
+            return {"busy": True}
+        try:
+            faces_before = self.store.counts().get("faces", 0)
+            people_before = visible_before = 0
+            deleted = measured = unmeasurable = 0
+            for uid in self.store.face_user_ids():
+                people_before += self.store.person_count(uid)
+                visible_before += len(self.store.people(uid))
+                by_photo: dict[str, list[dict]] = {}
+                for r in self.store.face_rows(uid):
+                    by_photo.setdefault(r["photo_id"], []).append(r)
+                keep, drop, skipped = [], [], 0
+                for pid, rows in by_photo.items():
+                    if self._stop.is_set():
+                        break
+                    thumb = os.path.join(self.thumbs, pid + ".jpg")
+                    bgr = load_bgr(thumb) if os.path.exists(thumb) else None
+                    if bgr is None:
+                        skipped += len(rows)  # no thumb to judge it by: leave it alone
+                        continue
+                    ih, iw = bgr.shape[0], bgr.shape[1]
+                    for r in rows:
+                        box = r.get("box")
+                        if not box or len(box) != 4:
+                            skipped += 1
+                            continue
+                        sharp = face_sharpness(bgr, box)
+                        crop_px = min(box[2] * iw, box[3] * ih)
+                        if face_quality_ok(r["det_score"], sharp, crop_px):
+                            keep.append((r["face_id"], sharp))
+                        else:
+                            drop.append(r["face_id"])
+                measured += self.store.set_face_sharpness(uid, keep)
+                deleted += self.store.delete_faces(uid, drop)
+                unmeasurable += skipped
+                print(f"[pipeline] face prune {uid}: kept {len(keep)}, deleted {len(drop)}, "
+                      f"unmeasurable {skipped}", flush=True)
+            self._recluster_all()  # re-group the survivors with the existing clustering
+            people_after = visible_after = 0
+            for uid in self.store.face_user_ids():
+                people_after += self.store.person_count(uid)
+                visible_after += len(self.store.people(uid))
+            return {
+                "ok": True,
+                "faces_before": faces_before,
+                "faces_after": self.store.counts().get("faces", 0),
+                "faces_deleted": deleted,
+                "faces_measured": measured,
+                "faces_unmeasurable": unmeasurable,
+                "people_before": people_before,
+                "people_after": people_after,
+                "visible_before": visible_before,
+                "visible_after": visible_after,
+            }
+        finally:
+            self._maint.release()
 
     def _index_photo(self, p):
         pid = p["id"]
@@ -140,6 +198,12 @@ class Pipeline:
                             continue
                         # Normalized [x, y, w, h] (top-left origin) for a client crop.
                         f["box"] = [max(0.0, x1 / iw), max(0.0, y1 / ih), min(1.0, bw), min(1.0, bh)]
+                        # Only CLEAR faces are stored: a blurred or postage-stamp crop
+                        # embeds badly, so it never matches its own person and instead
+                        # spawns a junk one-off "person".
+                        f["sharpness"] = face_sharpness(bgr, f["box"])
+                        if not face_quality_ok(f["det_score"], f["sharpness"], min(bw * iw, bh * ih)):
+                            continue
                         kept.append(f)
                     if kept:
                         self.store.add_faces(pid, uid, kept)
@@ -150,9 +214,6 @@ class Pipeline:
                     place = self.places.lookup(lat, lon)
                     if place and place.get("label"):
                         self.store.add_place(pid, uid, place)
-
-            if self.ocr is not None:
-                self.store.add_ocr(pid, uid, self.ocr.read(thumb))
 
             self.store.mark(pid, "done")
         except Exception as e:

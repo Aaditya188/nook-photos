@@ -74,17 +74,16 @@ STORE = None
 CLIP = None
 FACES = None
 PLACES = None
-OCR = None
 PIPE = None
 
 
 def _init():
-    global STORE, CLIP, FACES, PLACES, OCR, PIPE
+    global STORE, CLIP, FACES, PLACES, PIPE
     os.makedirs(INDEX_DIR, exist_ok=True)
     print(f"[nook-indexer] data={DATA_DIR} index={INDEX_DIR} port={PORT} faces={ENABLE_FACES}", flush=True)
     STORE = Store(os.path.join(INDEX_DIR, "ai-index.sqlite"))
-    CLIP, FACES, PLACES, OCR = load_models(enable_faces=ENABLE_FACES)
-    PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, ocr=OCR, poll_interval=POLL_SEC)
+    CLIP, FACES, PLACES = load_models(enable_faces=ENABLE_FACES)
+    PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, poll_interval=POLL_SEC)
     PIPE.start()
 
 
@@ -148,6 +147,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"results": []})
             qvec = CLIP.embed_text(q)
             return self._send(200, {"results": STORE.search(uid, qvec, q, limit)})
+        if u.path == "/faces/prune":
+            # Maintenance: re-measure stored face crops, delete the blurry/tiny ones and
+            # re-group the rest. Derived data only — original photos are never touched.
+            # Takes minutes on a large library, so call it with a generous timeout.
+            res = PIPE.prune_low_quality_faces()
+            if res.get("busy"):
+                return self._send(409, {"error": "prune already running"})
+            return self._send(200, res)
         return self._send(404, {"error": "not found"})
 
     def do_PATCH(self):

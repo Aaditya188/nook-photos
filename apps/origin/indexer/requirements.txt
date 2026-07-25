@@ -1,15 +1,30 @@
-# nook-indexer — Python deps (aarch64 wheels available for Raspberry Pi 5).
-# CLIP (semantic search)
-fastembed>=0.4
-# Face detection + embedding (SCRFD + ArcFace, buffalo_s pack)
+# nook-indexer — Python deps.
+#
+# These pins describe the LIVE deployment: Windows + RTX 4060, all inference through
+# onnxruntime-gpu. The CPU and GPU wheels install the SAME `onnxruntime` package, so
+# letting the CPU one in silently strips CUDAExecutionProvider and every model drops to
+# CPU — which is why the runtime is pinned exactly and why the GPU build of fastembed is
+# used. On a CPU-only host (e.g. a Raspberry Pi 5, which has no onnxruntime-gpu wheel)
+# swap fastembed-gpu -> fastembed and onnxruntime-gpu[cuda,cudnn] -> onnxruntime.
+#
+# AFTER ANY INSTALL RUN:  pip uninstall -y onnxruntime
+# insightface declares the CPU `onnxruntime` as a hard dependency and pip honours it,
+# clobbering the GPU runtime. setup-indexer.sh does this for you.
+
+# CLIP (semantic search). The -gpu build is the one that depends on onnxruntime-gpu;
+# plain `fastembed` pulls the CPU runtime back in.
+fastembed-gpu>=0.8
+# Face detection + embedding (RetinaFace-10G + ArcFace w600k_r50, buffalo_l pack).
+# Also brings opencv-python and scikit-image along transitively — don't add a second
+# opencv (e.g. -headless): both wheels install the same `cv2` package.
 insightface>=0.7
-opencv-python-headless>=4.9
 # Offline reverse geocoding (GPS -> city/country)
 reverse_geocoder>=1.5
-# Shared runtime
-onnxruntime>=1.17
+# Shared runtime — GPU. Pinned exactly to what the service runs; the [cuda,cudnn] extras
+# provide the nvidia/*/bin wheels that main.py registers with the Windows DLL loader
+# before the first ORT session is created.
+onnxruntime-gpu[cuda,cudnn]==1.22.0
 numpy>=1.26
 pillow>=10.0
-# OCR: text inside screenshots/documents (ONNX runtime, no PaddlePaddle).
-# Optional — the indexer runs fine without it; OCR is simply disabled.
-rapidocr_onnxruntime>=1.3
+# Agglomerative face clustering in store.recluster()
+scipy>=1.11

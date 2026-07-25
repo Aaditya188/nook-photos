@@ -17,6 +17,18 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# insightface hard-depends on the CPU `onnxruntime`, whose wheel overwrites the GPU
+# wheel's files and silently strips CUDAExecutionProvider. On a GPU host, drop the CPU
+# runtime pip just dragged in; on a CPU-only host there is nothing to do.
+if pip show onnxruntime-gpu >/dev/null 2>&1 && pip show onnxruntime >/dev/null 2>&1; then
+  echo "==> Removing the CPU onnxruntime pulled in by insightface (keeps the GPU stack)…"
+  pip uninstall -y onnxruntime
+fi
+python - <<'PY'
+import onnxruntime as ort
+print("[setup] onnxruntime", ort.__version__, "providers:", ort.get_available_providers())
+PY
+
 echo "==> Warming model downloads (one-time; needs internet)…"
 python - <<'PY'
 from fastembed import ImageEmbedding, TextEmbedding

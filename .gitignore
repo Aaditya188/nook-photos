@@ -12,6 +12,11 @@ web-build/
 apps/mobile/.expo/
 apps/web/dist/
 packages/*/dist/
+*.tsbuildinfo
+
+# python bytecode (the indexer runs in-place, so these appear on every boot)
+__pycache__/
+*.py[cod]
 
 # native
 *.orig.*

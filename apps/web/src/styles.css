@@ -23,6 +23,9 @@
   --input-bg: #0e0f10;
   --hover: #26262a;
   --sel-bg: #0e1a11;
+  /* Login hero: scrim laid over the ambient mosaic so the copy stays at AA. */
+  --auth-scrim: rgba(7, 11, 9, 0.93);
+  --auth-scrim-edge: rgba(7, 11, 9, 0.7);
 }
 
 /* Light theme: overrides the neutral surfaces + text; accents stay on-brand.
@@ -48,6 +51,8 @@ html[data-theme='light'] {
   --blue: #2f6bd6;
   --amber: #a86f1a;
   --pink: #d63b62;
+  --auth-scrim: rgba(248, 248, 251, 0.94);
+  --auth-scrim-edge: rgba(248, 248, 251, 0.76);
   color-scheme: light;
 }
 
@@ -588,7 +593,9 @@ button:focus-visible {
   .nook-glyph,
   .nook-loader::before,
   .boot-wordmark,
-  .tile.thumb-loading::after {
+  .tile.thumb-loading::after,
+  .auth-aurora,
+  .auth-tile {
     animation: none;
   }
 }
@@ -613,7 +620,7 @@ button:focus-visible {
 
 .auth-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   background: linear-gradient(165deg, #16211b, #131315);
   border: 0.5px solid rgba(87, 211, 138, 0.2);
   border-radius: 24px;
@@ -1076,8 +1083,6 @@ button:focus-visible {
 .shell {
   display: flex;
   align-items: flex-start;
-  max-width: 1500px;
-  margin: 0 auto;
 }
 
 .sidebar {
@@ -1204,7 +1209,15 @@ button:focus-visible {
 .content {
   flex: 1;
   min-width: 0;
-  padding: 18px 26px 84px;
+  /* Side gutter as a variable so full-bleed children can cancel it exactly. */
+  --content-pad: 26px;
+  padding: 18px var(--content-pad) 84px;
+}
+
+/* Ultra-wide displays: the shell is full-bleed, so open the gutter a touch so
+   tiles aren't flush against the viewport edge. */
+@media (min-width: 2100px) {
+  .content { --content-pad: 40px; }
 }
 
 .content .toolbar { margin: 0; }
@@ -1682,12 +1695,12 @@ button:focus-visible {
     transition: opacity 0.25s ease;
   }
   .sidebar-scrim.show { opacity: 1; pointer-events: auto; }
-  .content { padding: 16px 16px 64px; }
+  .content { --content-pad: 16px; padding: 16px var(--content-pad) 64px; }
   .vh-title { font-size: 24px; }
 }
 
 @media (max-width: 560px) {
-  .content { padding: 12px 10px 56px; }
+  .content { --content-pad: 10px; padding: 12px var(--content-pad) 56px; }
   .cover-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
   .people-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
   .person-av { width: 84px; height: 84px; }
@@ -1828,6 +1841,14 @@ html[data-theme='light'] .modal-card { background: #ffffff; }
 html[data-theme='light'] .modal-backdrop { background: rgba(0, 0, 0, 0.4); }
 html[data-theme='light'] .selection-bar { background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18); border: 0.5px solid rgba(0, 0, 0, 0.08); }
 html[data-theme='light'] .status-pill { border-color: rgba(0, 0, 0, 0.08); }
+/* The login card + its error banner are hardcoded dark; the copy inside them is
+   var(--text), so light theme needs a light surface or it goes dark-on-dark. */
+html[data-theme='light'] .auth-card {
+  background: linear-gradient(165deg, #ffffff, #f3f7f4);
+  border-color: rgba(18, 153, 90, 0.24);
+  box-shadow: 0 22px 56px rgba(17, 26, 21, 0.13);
+}
+html[data-theme='light'] .auth-error { color: #a3193a; background: rgba(214, 59, 98, 0.1); }
 
 /* ------------------------------------------------- private album lock wall */
 /* Hidden / Recently Deleted render behind a frosted wall until unlocked. */
@@ -2128,7 +2149,7 @@ h3.day-header {
 .auth-hero {
   position: relative;
   overflow: hidden;
-  flex: 1.15;
+  flex: 1.3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2137,10 +2158,28 @@ h3.day-header {
   border-right: 0.5px solid var(--hairline);
 }
 
+/* Scrim between the ambient background (aurora + mosaic, z 0) and the copy
+   (z 2). The tiles are texture, not imagery: this layer keeps every string on
+   the hero past AA no matter which tile colour drifts underneath it. */
+.auth-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    140% 125% at 50% 50%,
+    var(--auth-scrim) 0%,
+    var(--auth-scrim) 58%,
+    var(--auth-scrim-edge) 100%
+  );
+}
+
 /* Slow-moving aurora glow. */
 .auth-aurora {
   position: absolute;
   inset: -20%;
+  z-index: 0;
   background:
     radial-gradient(680px 520px at 18% 12%, rgba(87, 211, 138, 0.28), transparent 60%),
     radial-gradient(620px 480px at 82% 88%, rgba(143, 183, 255, 0.2), transparent 58%),
@@ -2154,16 +2193,19 @@ h3.day-header {
   100% { transform: translate3d(4%, 3%, 0) scale(1.12); }
 }
 
-/* Drifting mosaic of translucent "photo" tiles behind the copy. */
+/* Drifting mosaic of translucent "photo" tiles behind the copy — blurred and
+   desaturated down to ambient texture so it never competes with the text. */
 .auth-mosaic {
   position: absolute;
   inset: 0;
+  z-index: 0;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   grid-auto-rows: 1fr;
   gap: 14px;
   padding: 24px;
-  opacity: 0.5;
+  opacity: 0.3;
+  filter: blur(14px) saturate(0.65);
   mask-image: radial-gradient(120% 100% at 50% 50%, #000 35%, transparent 78%);
   -webkit-mask-image: radial-gradient(120% 100% at 50% 50%, #000 35%, transparent 78%);
 }
@@ -2185,7 +2227,7 @@ h3.day-header {
   100% { transform: translateY(-10px) scale(1.03); opacity: 1; }
 }
 
-.auth-hero-inner { position: relative; z-index: 1; max-width: 470px; }
+.auth-hero-inner { position: relative; z-index: 2; max-width: 520px; }
 
 .auth-hero-title {
   font-size: 42px;
@@ -2196,11 +2238,14 @@ h3.day-header {
 }
 
 .auth-hero-title span { color: var(--green); }
+/* Light theme's --green tops out around 3.3:1 on the pale hero; a shade deeper
+   clears AA for large text with real margin while reading as the same green. */
+html[data-theme='light'] .auth-hero-title span { color: #0b7a48; }
 
 .auth-hero-sub {
   font-size: 15.5px;
   line-height: 1.55;
-  color: var(--text-60);
+  color: var(--text-72);
   margin: 0 0 34px;
 }
 
@@ -2234,18 +2279,22 @@ h3.day-header {
 .auth-feature-title { font-size: 14.5px; font-weight: 650; }
 
 .auth-feature-sub {
-  font-size: 13px;
-  color: var(--text-55);
+  font-size: 13.5px;
+  color: var(--text-72);
   line-height: 1.45;
   margin-top: 2px;
 }
 
+/* Capped so the card column reads as a deliberate panel instead of dead space
+   on wide displays; the faint green wash ties it back to the hero. */
 .auth-panel {
   flex: 1;
+  max-width: 620px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 28px;
+  background: radial-gradient(120% 88% at 50% 0%, rgba(87, 211, 138, 0.07), transparent 62%);
 }
 
 .field-pw .pw-wrap { position: relative; }
@@ -2275,13 +2324,16 @@ h3.day-header {
   margin-top: 22px;
   text-align: center;
   font-size: 12px;
-  color: var(--text-45);
+  color: var(--text-55);
 }
 
 @media (max-width: 940px) {
   .auth-split { flex-direction: column; }
-  .auth-hero { border-right: none; border-bottom: 0.5px solid var(--hairline); padding: 40px 26px; }
+  /* Stacked: the hero sizes to its copy and the card panel takes the rest, so
+     neither gets squeezed by the 1.3/1 row split. */
+  .auth-hero { flex: none; border-right: none; border-bottom: 0.5px solid var(--hairline); padding: 40px 26px; }
   .auth-hero-title { font-size: 32px; margin-top: 24px; }
+  .auth-panel { max-width: none; }
   .auth-features { display: none; }
 }
 
@@ -4059,32 +4111,3 @@ h3.day-header {
 @media (max-width: 720px) {
   .ins-cards { grid-template-columns: 1fr 1fr; }
 }
-
-/* ============================== recap ============================== */
-.rc-wrap { display: flex; flex-direction: column; gap: 26px; max-width: 900px; }
-.rc-years { display: flex; flex-wrap: wrap; gap: 8px; }
-.rc-year-pill {
-  padding: 7px 16px; border-radius: 999px; border: 0.5px solid var(--hairline);
-  background: var(--tile-bg); color: var(--text-72); font-size: 14px; font-weight: 650; cursor: pointer;
-}
-.rc-year-pill.active { background: var(--sel-bg); color: var(--green); border-color: transparent; }
-.rc-hero {
-  border-radius: 20px; padding: 40px 28px;
-  background: radial-gradient(120% 140% at 0% 0%, rgba(87,211,138,0.22), transparent 60%), var(--tile-bg);
-  border: 0.5px solid var(--hairline);
-}
-.rc-hero-kicker { font-size: 14px; color: var(--text-60); letter-spacing: 0.3px; }
-.rc-hero-year { font-size: 72px; font-weight: 800; letter-spacing: -2px; line-height: 1; color: var(--green); }
-.rc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
-.rc-stat { background: var(--tile-bg); border: 0.5px solid var(--hairline); border-radius: 14px; padding: 16px 18px; }
-.rc-stat-num { font-size: 26px; font-weight: 750; letter-spacing: -0.5px; }
-.rc-stat-label { font-size: 12.5px; color: var(--text-60); margin-top: 2px; }
-.rc-section { display: flex; flex-direction: column; gap: 12px; }
-.rc-h { font-size: 15px; font-weight: 700; margin: 0; }
-.rc-months { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
-.rc-month { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
-.rc-month-bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
-.rc-month-bar { width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #57d38a, #2f8f5c); }
-.rc-month-label { font-size: 11px; color: var(--text-45); }
-.rc-note { font-size: 13px; color: var(--text-60); }
-.rc-highlights { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }

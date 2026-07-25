@@ -34,6 +34,59 @@ AGGLOM_MAX_FACES = 30000
 # 2 to cut the long tail of acquaintances/strangers who appear in just a couple of
 # photos (which otherwise reads as clutter). Env-tunable: lower to see more people.
 MIN_PERSON_PHOTOS = int(os.environ.get("NOOK_MIN_PERSON_PHOTOS", "4"))
+# Face-quality gate — only CLEAR faces are worth storing. A blurry or postage-stamp
+# crop produces a meaningless ArcFace embedding, which is exactly what spawns
+# hundreds of junk one-off "people" (and unrecognisable cover tiles).
+# Minimum variance-of-Laplacian on the crop (models.face_sharpness). Measured on this
+# library: median ~670, 10th percentile ~139, and the motion-blurred tail below ~100.
+# Env-tunable: raise to demand crisper faces (fewer, cleaner people); lower to keep more.
+FACE_MIN_SHARPNESS = float(os.environ.get("NOOK_FACE_MIN_SHARPNESS", "120"))
+# Minimum crop size in thumbnail pixels (shorter side). Complements the pipeline's
+# FACE_MIN_SIZE, which is a *fraction* of the frame: below ~40 px there simply isn't
+# enough detail to identify anyone or to judge blur. Env-tunable: raise to reject more
+# background faces; lower to keep small ones.
+FACE_MIN_CROP_PX = int(os.environ.get("NOOK_FACE_MIN_CROP_PX", "40"))
+# Sharpness at which a cover candidate counts as fully sharp (see _cover_score).
+COVER_SHARP_TARGET = 600.0
+
+
+def face_quality_ok(det_score: float, sharpness: float, crop_px: float) -> bool:
+    """True if a face crop is clear enough to store: big enough, and sharp enough for
+    how confidently it was detected.
+
+    The two signals are combined rather than applied independently — a very confident
+    detection is allowed to be somewhat softer (det_score 0.9 relaxes the sharpness
+    floor by ~20%), a marginal one has to be crisper. `sharpness` may be None for a
+    face row stored before the gate existed; those are kept until measured.
+    """
+    if crop_px < FACE_MIN_CROP_PX:
+        return False
+    if sharpness is None:
+        return True
+    relax = 1.25 - 0.5 * max(0.0, min(1.0, float(det_score)))
+    return float(sharpness) >= FACE_MIN_SHARPNESS * relax
+
+
+def _box_area(box) -> float:
+    return (box[2] * box[3]) if box and len(box) == 4 else 0.0
+
+
+def _cover_score(area: float, det_score: float, sharpness, rival_area: float) -> float:
+    """Rank one face crop as a candidate cover tile for its person.
+
+    A good cover is a sharp, confidently detected close-up where this person is the
+    only prominent face. The rival term (the largest *other* face sharing the frame)
+    is what keeps group shots out: in a photo with a second, comparably big face the
+    tile can't say who the person is, so the score is scaled down hard — half-size
+    rival ≈ x0.4, equal-size rival ≈ x0.25. Sharpness saturates at
+    COVER_SHARP_TARGET; an unmeasured face (pre-gate row) scores neutrally so it
+    neither beats nor loses to measured ones on that term alone.
+    """
+    if area <= 0:
+        return 0.0
+    q = 0.5 if sharpness is None else min(1.0, max(0.0, float(sharpness)) / COVER_SHARP_TARGET)
+    solo = 1.0 / (1.0 + 3.0 * (rival_area / area))
+    return area * (0.5 + 0.5 * float(det_score)) * (0.35 + 0.65 * q) * solo
 
 
 def _f32_to_blob(v: np.ndarray) -> bytes:
@@ -54,7 +107,7 @@ class Store:
         # In-memory, per-user caches.
         self._clip_ids: dict[str, list[str]] = {}
         self._clip_mat: dict[str, np.ndarray] = {}
-        self._face_rows: dict[str, list[dict]] = {}   # {face_id, photo_id, person_id, det_score, bbox}
+        self._face_rows: dict[str, list[dict]] = {}   # {face_id, photo_id, person_id, det_score, box, sharpness}
         self._face_mat: dict[str, np.ndarray] = {}
         self._load_into_memory()
 
@@ -78,23 +131,39 @@ class Store:
                 photo_id TEXT PRIMARY KEY, user_id TEXT,
                 city TEXT, admin1 TEXT, cc TEXT, label TEXT
             );
-            CREATE TABLE IF NOT EXISTS photo_text (
-                photo_id TEXT PRIMARY KEY, user_id TEXT, text TEXT
-            );
             CREATE TABLE IF NOT EXISTS index_state (
                 photo_id TEXT PRIMARY KEY, status TEXT, error TEXT, updated_at REAL
             );
             CREATE INDEX IF NOT EXISTS faces_user ON faces(user_id);
             CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id);
             CREATE INDEX IF NOT EXISTS places_user ON places(user_id);
-            CREATE INDEX IF NOT EXISTS phototext_user ON photo_text(user_id);
             """
         )
         # Migration: people.hidden (0/1) for hiding a person from the rail.
         cols = [r[1] for r in c.execute("PRAGMA table_info(people)")]
         if "hidden" not in cols:
             c.execute("ALTER TABLE people ADD COLUMN hidden INTEGER DEFAULT 0")
+        # Migration: faces.sharpness (variance of the Laplacian of the crop). NULL means
+        # "not measured yet" — a face stored before the quality gate existed.
+        fcols = [r[1] for r in c.execute("PRAGMA table_info(faces)")]
+        if "sharpness" not in fcols:
+            c.execute("ALTER TABLE faces ADD COLUMN sharpness REAL")
         c.commit()
+        # Migration: OCR is gone, so the text table (and its indexes) are dead weight.
+        # DROP releases the pages and the one-time VACUUM hands the space back to the
+        # filesystem; both are no-ops on every later boot.
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_text'").fetchone():
+            c.execute("DROP TABLE photo_text")
+            c.commit()
+            prev = c.isolation_level
+            c.isolation_level = None  # VACUUM cannot run inside a transaction
+            try:
+                c.execute("VACUUM")
+                print("[store] dropped the OCR text table and vacuumed the index", flush=True)
+            except Exception as e:
+                print("[store] OCR table dropped; VACUUM skipped:", e, flush=True)
+            finally:
+                c.isolation_level = prev
 
     def _load_into_memory(self):
         for pid, uid, blob in self._db.execute(
@@ -104,15 +173,16 @@ class Store:
             self._clip_mat.setdefault(uid, []).append(_blob_to_f32(blob))
         for uid in list(self._clip_mat):
             self._clip_mat[uid] = np.vstack(self._clip_mat[uid]) if self._clip_mat[uid] else np.zeros((0, 512), np.float32)
-        for fid, pid, uid, person, score, bbox, emb in self._db.execute(
-            "SELECT id, photo_id, user_id, person_id, det_score, bbox, embedding FROM faces"
+        for fid, pid, uid, person, score, bbox, sharp, emb in self._db.execute(
+            "SELECT id, photo_id, user_id, person_id, det_score, bbox, sharpness, embedding FROM faces"
         ):
             try:
                 box = json.loads(bbox) if bbox else None
             except Exception:
                 box = None
             self._face_rows.setdefault(uid, []).append(
-                {"face_id": fid, "photo_id": pid, "person_id": person, "det_score": score, "box": box}
+                {"face_id": fid, "photo_id": pid, "person_id": person, "det_score": score,
+                 "box": box, "sharpness": sharp}
             )
             self._face_mat.setdefault(uid, []).append(_blob_to_f32(emb))
         for uid in list(self._face_mat):
@@ -176,12 +246,14 @@ class Store:
                     person_id = "pp_" + uuid.uuid4().hex[:10]
                 face_id = "f_" + uuid.uuid4().hex[:12]
                 box = f.get("box")
+                sharp = f.get("sharpness")
+                sharp = float(sharp) if sharp is not None else None
                 self._db.execute(
-                    "INSERT OR REPLACE INTO faces(id,photo_id,user_id,person_id,det_score,bbox,embedding) VALUES(?,?,?,?,?,?,?)",
-                    (face_id, photo_id, user_id, person_id, float(f["det_score"]), json.dumps(box or []), _f32_to_blob(emb)),
+                    "INSERT OR REPLACE INTO faces(id,photo_id,user_id,person_id,det_score,bbox,sharpness,embedding) VALUES(?,?,?,?,?,?,?,?)",
+                    (face_id, photo_id, user_id, person_id, float(f["det_score"]), json.dumps(box or []), sharp, _f32_to_blob(emb)),
                 )
                 rows.append({"face_id": face_id, "photo_id": photo_id, "person_id": person_id,
-                             "det_score": float(f["det_score"]), "box": box})
+                             "det_score": float(f["det_score"]), "box": box, "sharpness": sharp})
                 r = emb.reshape(1, -1)
                 existing = r if existing is None or existing.size == 0 else np.vstack([existing, r])
                 self._face_mat[user_id] = existing
@@ -190,6 +262,16 @@ class Store:
     def face_user_ids(self) -> list:
         with self._lock:
             return list(self._face_rows.keys())
+
+    def face_rows(self, user_id: str) -> list:
+        """Snapshot of a user's face rows (face_id/photo_id/box/det_score/sharpness) for
+        a maintenance pass that needs to re-measure crops without holding the lock."""
+        with self._lock:
+            return [dict(r) for r in self._face_rows.get(user_id, [])]
+
+    def person_count(self, user_id: str) -> int:
+        with self._lock:
+            return len({r["person_id"] for r in self._face_rows.get(user_id, [])})
 
     def recluster(self, user_id: str) -> dict:
         """Re-group ALL of a user's faces from scratch with agglomerative clustering.
@@ -277,27 +359,50 @@ class Store:
             )
             self._db.commit()
 
-    def add_ocr(self, photo_id: str, user_id: str, text: str):
-        """Store text recognized in a photo (OCR). Empty text still records a row
-        so the backfill pass doesn't keep re-OCRing blank images."""
+    def set_face_sharpness(self, user_id: str, values: list) -> int:
+        """Persist measured crop sharpness for [(face_id, sharpness), ...]."""
+        if not values:
+            return 0
         with self._lock:
-            self._db.execute(
-                "INSERT OR REPLACE INTO photo_text(photo_id,user_id,text) VALUES(?,?,?)",
-                (photo_id, user_id, (text or "").strip()),
+            self._db.executemany(
+                "UPDATE faces SET sharpness=? WHERE id=?",
+                [(float(s), fid) for fid, s in values],
             )
             self._db.commit()
+            measured = {fid: float(s) for fid, s in values}
+            for r in self._face_rows.get(user_id, []):
+                if r["face_id"] in measured:
+                    r["sharpness"] = measured[r["face_id"]]
+            return len(values)
 
-    def photos_missing_ocr(self, limit: int = 40) -> list:
-        """Already-CLIP-indexed photos that have no OCR row yet — for backfilling
-        OCR onto a library indexed before OCR was enabled."""
+    def delete_faces(self, user_id: str, face_ids: list) -> int:
+        """Delete face rows by id and drop any person left with no faces.
+
+        DERIVED DATA ONLY: face rows live in ai-index.sqlite and are recomputed from
+        thumbnails by a re-index. Original photos are never touched.
+        """
+        if not face_ids:
+            return 0
+        drop = set(face_ids)
         with self._lock:
-            rows = self._db.execute(
-                "SELECT e.photo_id, e.user_id FROM photo_embeddings e "
-                "LEFT JOIN photo_text t ON t.photo_id = e.photo_id "
-                "WHERE t.photo_id IS NULL LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [(r[0], r[1]) for r in rows]
+            self._db.executemany("DELETE FROM faces WHERE id=?", [(fid,) for fid in drop])
+            rows = self._face_rows.get(user_id, [])
+            keep = [i for i, r in enumerate(rows) if r["face_id"] not in drop]
+            deleted = len(rows) - len(keep)
+            self._face_rows[user_id] = [rows[i] for i in keep]
+            mat = self._face_mat.get(user_id)
+            if mat is not None and mat.size:
+                self._face_mat[user_id] = mat[keep] if keep else np.zeros((0, mat.shape[1]), np.float32)
+            # People whose every face just went away would otherwise linger as empty
+            # names in the rail.
+            alive = {r["person_id"] for r in self._face_rows[user_id]}
+            for (pid,) in self._db.execute(
+                "SELECT person_id FROM people WHERE user_id=?", (user_id,)
+            ).fetchall():
+                if pid not in alive:
+                    self._db.execute("DELETE FROM people WHERE person_id=?", (pid,))
+            self._db.commit()
+            return deleted
 
     def remove_photo(self, photo_id: str):
         """Drop all index rows for a photo (deleted/purged on the Node side)."""
@@ -305,7 +410,6 @@ class Store:
             self._db.execute("DELETE FROM photo_embeddings WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM places WHERE photo_id=?", (photo_id,))
-            self._db.execute("DELETE FROM photo_text WHERE photo_id=?", (photo_id,))
             self._db.execute("DELETE FROM index_state WHERE photo_id=?", (photo_id,))
             self._db.commit()
             # Rebuild in-memory caches for affected users lazily on next load; here
@@ -342,35 +446,31 @@ class Store:
                     ll = (label or "").lower()
                     if any(t in ll for t in tokens):
                         scores[pid] = max(scores.get(pid, 0.0), 0.5) + 0.3
-                # OCR text match: strongly boost photos whose recognized text
-                # contains a query token (documents, screenshots, signs).
-                for pid, txt in self._db.execute(
-                    "SELECT photo_id, text FROM photo_text WHERE user_id=? AND text != ''", (user_id,)
-                ):
-                    tl = (txt or "").lower()
-                    hits = sum(1 for t in tokens if t in tl)
-                    if hits:
-                        scores[pid] = max(scores.get(pid, 0.0), 0.6) + 0.2 * hits
             ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:limit]
             return [{"photoId": pid, "score": round(s, 4)} for pid, s in ranked]
 
     def people(self, user_id: str) -> list:
         with self._lock:
             rows = self._face_rows.get(user_id, [])
+            # Face areas indexed by photo, so a cover candidate can be judged against
+            # the other faces sharing its frame.
+            areas = [_box_area(r.get("box")) for r in rows]
+            photo_idx: dict[str, list[int]] = {}
+            for i, r in enumerate(rows):
+                photo_idx.setdefault(r["photo_id"], []).append(i)
             groups: dict[str, dict] = {}
-            for r in rows:
-                g = groups.setdefault(r["person_id"], {"photos": set(), "cover": None, "cover_score": -1, "box": None})
+            for i, r in enumerate(rows):
+                g = groups.setdefault(r["person_id"], {"photos": set(), "cover": None, "cover_score": -1.0, "box": None})
                 g["photos"].add(r["photo_id"])
-                # Cover = the shot where this person's face is the most prominent
-                # (largest box area, weighted by detection confidence), so tiles
-                # crop to a big close-up rather than a tiny face in a group photo.
-                box = r.get("box")
-                area = (box[2] * box[3]) if box and len(box) == 4 else 0.0
-                score = area * (0.5 + 0.5 * float(r["det_score"]))
+                # Cover = the sharpest, biggest, least-crowded shot of this person, so
+                # tiles crop to a recognisable close-up of ONE face rather than a
+                # smeared or tiny face out of a group photo.
+                rival = max((areas[j] for j in photo_idx[r["photo_id"]] if j != i), default=0.0)
+                score = _cover_score(areas[i], r["det_score"], r.get("sharpness"), rival)
                 if score > g["cover_score"]:
                     g["cover_score"] = score
                     g["cover"] = r["photo_id"]
-                    g["box"] = box
+                    g["box"] = r.get("box")
             names = {}
             hidden = set()
             for pid, name, hid in self._db.execute(

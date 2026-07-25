@@ -3,7 +3,6 @@
 Faces and geocoding degrade gracefully — if their optional deps or model files
 are unavailable, that capability is simply disabled and the rest keeps working.
 """
-import os
 import numpy as np
 
 # Conservative CUDA execution-provider options. onnxruntime's defaults
@@ -112,26 +111,6 @@ class Places:
         return {"city": city, "admin1": admin1, "cc": cc, "label": label}
 
 
-class Ocr:
-    """Text recognition via RapidOCR (ONNX runtime — reuses the existing ORT
-    stack, no PaddlePaddle). Returns the concatenated text found in an image."""
-
-    def __init__(self):
-        from rapidocr_onnxruntime import RapidOCR
-
-        self._ocr = RapidOCR()
-
-    def read(self, path: str) -> str:
-        try:
-            result, _ = self._ocr(path)
-        except Exception:
-            return ""
-        if not result:
-            return ""
-        parts = [str(line[1]).strip() for line in result if len(line) > 1 and line[1]]
-        return " ".join(p for p in parts if p)
-
-
 def load_models(enable_faces: bool = True):
     """Load available models; None for any that fail so the service still runs."""
     clip = Clip()  # required — if CLIP fails, the indexer is pointless, let it raise
@@ -148,14 +127,7 @@ def load_models(enable_faces: bool = True):
         print("[models] places enabled (reverse_geocoder)", flush=True)
     except Exception as e:
         print("[models] places DISABLED:", e, flush=True)
-    ocr = None
-    if os.environ.get("NOOK_ENABLE_OCR", "1") != "0":
-        try:
-            ocr = Ocr()
-            print("[models] OCR enabled (rapidocr)", flush=True)
-        except Exception as e:
-            print("[models] OCR DISABLED (pip install rapidocr_onnxruntime):", e, flush=True)
-    return clip, faces, places, ocr
+    return clip, faces, places
 
 
 def load_bgr(path: str):
@@ -166,3 +138,41 @@ def load_bgr(path: str):
         return np.asarray(img)[:, :, ::-1].copy()  # RGB→BGR
     except Exception:
         return None
+
+
+# Face crops are judged at a common effective resolution: a crop larger than this is
+# integer-subsampled down to roughly this side before the Laplacian, so a 300 px
+# close-up and a 60 px face are scored on comparable pixel density. Subsampling (not
+# interpolating) is deliberate — resampling filters smooth the image and would make
+# every small crop read as blurry.
+SHARPNESS_TARGET_PX = 96
+
+
+def face_sharpness(bgr, box) -> float:
+    """Blur score for one face crop: the variance of its Laplacian (higher = sharper).
+
+    A blurred crop (motion smear, out-of-focus background face) carries almost no
+    high-frequency energy, so its second derivative stays near zero and the variance
+    collapses; a crisp crop has strong edges and a large variance. Measured on this
+    library, sharp faces land in the hundreds-to-thousands and the blurry tail sits
+    under ~100. `box` is the normalized [x, y, w, h] crop stored on the face row.
+    Returns 0.0 for an unusable crop.
+    """
+    ih, iw = bgr.shape[0], bgr.shape[1]
+    x1 = max(0, int(box[0] * iw))
+    y1 = max(0, int(box[1] * ih))
+    x2 = min(iw, int((box[0] + box[2]) * iw))
+    y2 = min(ih, int((box[1] + box[3]) * ih))
+    if x2 - x1 < 8 or y2 - y1 < 8:
+        return 0.0
+    crop = bgr[y1:y2, x1:x2]
+    # Rec.601 luma from BGR, float32 so the differences don't wrap.
+    g = (0.114 * crop[:, :, 0] + 0.587 * crop[:, :, 1] + 0.299 * crop[:, :, 2]).astype(np.float32)
+    step = max(1, min(g.shape[0], g.shape[1]) // SHARPNESS_TARGET_PX)
+    if step > 1:
+        g = g[::step, ::step]
+    if g.shape[0] < 5 or g.shape[1] < 5:
+        return 0.0
+    # 4-neighbour Laplacian as a second difference — no cv2/scipy convolution needed.
+    lap = g[:-2, 1:-1] + g[2:, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:] - 4.0 * g[1:-1, 1:-1]
+    return float(lap.var())

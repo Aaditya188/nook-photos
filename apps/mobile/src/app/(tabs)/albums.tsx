@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAlbums, useLibrary, useCreateAlbum, useDeletedPhotos, type Album } from '@nook/core';
 import { RemoteThumb } from '@/components/RemoteImage';
-import { Text, Card, Divider } from '@/components/ui';
+import { Text, Card, Divider, BrandLoader } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export default function AlbumsScreen() {
@@ -14,6 +14,11 @@ export default function AlbumsScreen() {
   const library = useLibrary();
   const deleted = useDeletedPhotos();
   const createAlbum = useCreateAlbum();
+
+  // Every section here is fed by one of the three queries, so hold the whole
+  // screen on the first fetch — otherwise "No albums yet" and zeroed counts
+  // flash before the real data lands.
+  const loading = albums.isLoading || library.isLoading || deleted.isLoading;
 
   const counts = useMemo(() => {
     const live = (library.data ?? []).filter((p) => !p.hidden && p.uploadState === 'complete');
@@ -45,6 +50,14 @@ export default function AlbumsScreen() {
     { key: 'live', label: 'Live Photos', icon: 'motion-photos-on', count: counts.livePhotos },
     { key: 'favorites', label: 'Favorites', icon: 'favorite', count: (library.data ?? []).filter((p) => p.favorite).length },
   ];
+
+  if (loading) {
+    return (
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
+        <BrandLoader label="Loading your albums…" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
