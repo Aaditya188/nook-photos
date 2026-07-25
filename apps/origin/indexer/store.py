@@ -191,7 +191,8 @@ class Store:
     # ---- indexing state ----
 
     def indexed_ids(self) -> set:
-        return {r[0] for r in self._db.execute("SELECT photo_id FROM index_state WHERE status='done'")}
+        with self._lock:
+            return {r[0] for r in self._db.execute("SELECT photo_id FROM index_state WHERE status='done'")}
 
     def mark(self, photo_id: str, status: str, error: str = ""):
         with self._lock:
@@ -203,10 +204,14 @@ class Store:
             self._db.commit()
 
     def counts(self) -> dict:
-        cur = self._db.execute("SELECT COUNT(*) FROM photo_embeddings")
-        photos = cur.fetchone()[0]
-        faces = self._db.execute("SELECT COUNT(*) FROM faces").fetchone()[0]
-        return {"photos": photos, "faces": faces}
+        # The lock is not optional: `_db` is shared by the poll thread and every HTTP
+        # handler thread (check_same_thread=False), and reading it unlocked really does
+        # tear — /health has raised "IndexError: tuple index out of range" from
+        # fetchone()[0] here while a writer was mid-statement on the same connection.
+        with self._lock:
+            photos = self._db.execute("SELECT COUNT(*) FROM photo_embeddings").fetchone()[0]
+            faces = self._db.execute("SELECT COUNT(*) FROM faces").fetchone()[0]
+            return {"photos": photos, "faces": faces}
 
     # ---- writes (called by the pipeline) ----
 
@@ -313,8 +318,12 @@ class Store:
             Z = linkage(pdist(X, metric="cosine"), method="average")
             labels = fcluster(Z, t=1.0 - FACE_CLUSTER_SIM, criterion="distance")
 
-            names = {pid: name for pid, _uid, name in self._db.execute(
-                "SELECT person_id,user_id,name FROM people WHERE user_id=?", (user_id,))}
+            names, was_hidden = {}, set()
+            for pid, name, hid in self._db.execute(
+                    "SELECT person_id,name,hidden FROM people WHERE user_id=?", (user_id,)):
+                names[pid] = name
+                if hid:
+                    was_hidden.add(pid)
 
             from collections import defaultdict, Counter
             label_members: dict[int, list[int]] = defaultdict(list)
@@ -323,33 +332,38 @@ class Store:
 
             # Fresh, stable person_id per cluster; carry over the plurality name.
             new_person = [None] * n
-            carried: dict[str, str] = {}
+            carried: dict[str, tuple] = {}   # new person_id -> (name, hidden)
             for l, idxs in label_members.items():
                 pid = "pp_" + uuid.uuid4().hex[:10]
                 for i in idxs:
                     new_person[i] = pid
                 voted = Counter(
                     names[old_person[i]] for i in idxs if names.get(old_person[i]))
-                if voted:
-                    carried[pid] = voted.most_common(1)[0][0]
+                nm = voted.most_common(1)[0][0] if voted else None
+                # `hidden` has to ride along with the name vote. The DELETE below drops
+                # this user's people rows and every cluster gets a brand-new uuid, so a
+                # flag that isn't carried here is simply gone — which silently un-hid
+                # everyone on each recluster (and a prune runs one at the end).
+                hid = sum(1 for i in idxs if old_person[i] in was_hidden) * 2 > len(idxs)
+                if nm or hid:
+                    carried[pid] = (nm, hid)
 
-            changed = 0
+            # One executemany rather than a statement per face: each UPDATE rewrites a row
+            # carrying a ~2 KB embedding blob, and that is most of the WAL this pass makes.
+            moves = [(new_person[i], r["face_id"]) for i, r in enumerate(rows)
+                     if r["person_id"] != new_person[i]]
+            self._db.executemany("UPDATE faces SET person_id=? WHERE id=?", moves)
             for i, r in enumerate(rows):
-                if r["person_id"] != new_person[i]:
-                    self._db.execute("UPDATE faces SET person_id=? WHERE id=?",
-                                     (new_person[i], r["face_id"]))
-                    r["person_id"] = new_person[i]
-                    changed += 1
+                r["person_id"] = new_person[i]
 
             # Rebuild the names table for this user against the new cluster ids.
             self._db.execute("DELETE FROM people WHERE user_id=?", (user_id,))
-            for pid, nm in carried.items():
-                self._db.execute(
-                    "INSERT INTO people(person_id,user_id,name) VALUES(?,?,?)",
-                    (pid, user_id, nm))
+            self._db.executemany(
+                "INSERT INTO people(person_id,user_id,name,hidden) VALUES(?,?,?,?)",
+                [(pid, user_id, nm, 1 if hid else 0) for pid, (nm, hid) in carried.items()])
             self._db.commit()
             after = len(set(new_person))
-            return {"people_before": before, "people_after": after, "changed": changed}
+            return {"people_before": before, "people_after": after, "changed": len(moves)}
 
     def add_place(self, photo_id: str, user_id: str, place: dict):
         with self._lock:

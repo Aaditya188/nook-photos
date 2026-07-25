@@ -7,6 +7,7 @@ Also prunes index rows for photos that were deleted or purged on the Node side.
 import json
 import os
 import threading
+import time
 
 from models import load_bgr, face_sharpness
 from store import face_quality_ok
@@ -32,6 +33,14 @@ class Pipeline:
         self._dirty = False  # new faces added since the last authoritative recluster
         self._maint = threading.Lock()  # one face-quality maintenance pass at a time
         self.status = {"indexing": False, "done": 0, "pending": 0, "last_error": ""}
+        # Progress + outcome of the background face-quality prune, so a caller polls
+        # instead of holding a request open for minutes. Every key is created here and
+        # only ever reassigned — never added or removed — so another thread can safely
+        # serialize this dict while the pass is mutating it.
+        self.prune = {"running": False, "phase": "idle", "started_at": None,
+                      "finished_at": None, "users_done": 0, "users_total": 0,
+                      "photos_done": 0, "photos_total": 0, "faces_measured": 0,
+                      "faces_deleted": 0, "result": None, "error": None}
 
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
@@ -97,9 +106,53 @@ class Pipeline:
         self._dirty = True
         self.status["indexing"] = False
 
-    def prune_low_quality_faces(self) -> dict:
-        """Maintenance: re-measure every stored face against the current quality gate,
-        delete the ones that fail, then re-group the survivors.
+    def start_prune(self) -> bool:
+        """Begin a face-quality prune on a background thread. False if one is running.
+
+        The pass takes minutes — longer than any HTTP client will wait — so it must not
+        run inside a request handler. It used to: a client that timed out and hung up
+        discarded a pass that had in fact completed, and the traceback from writing the
+        response to the dead socket read exactly like a wedged lock.
+
+        `_maint` is acquired here, on the caller's thread, and released by the worker's
+        `finally`. A plain Lock has no owner, so handing it off between threads is legal,
+        and it means "already running" is true from the instant the request is accepted
+        until the pass is genuinely over — result, exception, or shutdown alike.
+        """
+        if not self._maint.acquire(blocking=False):
+            return False
+        self.prune.update({
+            "running": True, "phase": "measuring", "started_at": time.time(),
+            "finished_at": None, "users_done": 0, "users_total": 0, "photos_done": 0,
+            "photos_total": 0, "faces_measured": 0, "faces_deleted": 0,
+            "result": None, "error": None,
+        })
+        try:
+            threading.Thread(target=self._prune_worker, daemon=True).start()
+        except Exception:
+            # Nobody will reach the worker's finally, so undo the acquire here rather
+            # than leaving the lock held forever with no thread to release it.
+            self.prune.update({"running": False, "phase": "idle"})
+            self._maint.release()
+            raise
+        return True
+
+    def _prune_worker(self):
+        try:
+            res = self._prune_low_quality_faces()
+            self.prune.update({"phase": "cancelled" if res.get("cancelled") else "done",
+                               "result": res})
+        except Exception as e:
+            self.prune.update({"phase": "failed", "error": str(e)})
+            print("[pipeline] face prune failed:", e, flush=True)
+        finally:
+            self.prune.update({"running": False, "finished_at": time.time()})
+            self._maint.release()
+
+    def _prune_low_quality_faces(self) -> dict:
+        """Re-measure every stored face against the current quality gate, delete the ones
+        that fail, then re-group the survivors. Assumes `_maint` is held — go through
+        start_prune(), never call this directly.
 
         Faces indexed before the sharpness gate existed include blurry and tiny crops,
         which is what left the library with hundreds of duplicate/junk "people". This
@@ -112,63 +165,75 @@ class Pipeline:
         and the Node server's db.json are opened read-only or not at all, and are NEVER
         modified or deleted.
         """
-        if not self._maint.acquire(blocking=False):
-            return {"busy": True}
-        try:
-            faces_before = self.store.counts().get("faces", 0)
-            people_before = visible_before = 0
-            deleted = measured = unmeasurable = 0
-            for uid in self.store.face_user_ids():
-                people_before += self.store.person_count(uid)
-                visible_before += len(self.store.people(uid))
-                by_photo: dict[str, list[dict]] = {}
-                for r in self.store.face_rows(uid):
-                    by_photo.setdefault(r["photo_id"], []).append(r)
-                keep, drop, skipped = [], [], 0
-                for pid, rows in by_photo.items():
-                    if self._stop.is_set():
-                        break
-                    thumb = os.path.join(self.thumbs, pid + ".jpg")
-                    bgr = load_bgr(thumb) if os.path.exists(thumb) else None
-                    if bgr is None:
-                        skipped += len(rows)  # no thumb to judge it by: leave it alone
+        faces_before = self.store.counts().get("faces", 0)
+        people_before = visible_before = 0
+        deleted = measured = unmeasurable = 0
+        uids = self.store.face_user_ids()
+        self.prune["users_total"] = len(uids)
+        for uid in uids:
+            people_before += self.store.person_count(uid)
+            visible_before += len(self.store.people(uid))
+            by_photo: dict[str, list[dict]] = {}
+            for r in self.store.face_rows(uid):
+                by_photo.setdefault(r["photo_id"], []).append(r)
+            self.prune.update({"photos_done": 0, "photos_total": len(by_photo)})
+            keep, drop, skipped = [], [], 0
+            for pid, rows in by_photo.items():
+                if self._stop.is_set():
+                    # Shutting down mid-scan. keep/drop only cover the photos measured so
+                    # far, so writing them would prune against a partial measurement and
+                    # then burn the O(n^2) recluster during shutdown. Throw this user's
+                    # work away (the pass is idempotent, and the next boot reclusters
+                    # anyway) and report it instead of claiming success.
+                    print(f"[pipeline] face prune {uid}: cancelled at "
+                          f"{self.prune['photos_done']}/{len(by_photo)} photos", flush=True)
+                    return {"ok": False, "cancelled": True, "faces_before": faces_before,
+                            "faces_deleted": deleted, "faces_measured": measured,
+                            "faces_unmeasurable": unmeasurable}
+                thumb = os.path.join(self.thumbs, pid + ".jpg")
+                bgr = load_bgr(thumb) if os.path.exists(thumb) else None
+                if bgr is None:
+                    skipped += len(rows)  # no thumb to judge it by: leave it alone
+                    self.prune["photos_done"] += 1
+                    continue
+                ih, iw = bgr.shape[0], bgr.shape[1]
+                for r in rows:
+                    box = r.get("box")
+                    if not box or len(box) != 4:
+                        skipped += 1
                         continue
-                    ih, iw = bgr.shape[0], bgr.shape[1]
-                    for r in rows:
-                        box = r.get("box")
-                        if not box or len(box) != 4:
-                            skipped += 1
-                            continue
-                        sharp = face_sharpness(bgr, box)
-                        crop_px = min(box[2] * iw, box[3] * ih)
-                        if face_quality_ok(r["det_score"], sharp, crop_px):
-                            keep.append((r["face_id"], sharp))
-                        else:
-                            drop.append(r["face_id"])
-                measured += self.store.set_face_sharpness(uid, keep)
-                deleted += self.store.delete_faces(uid, drop)
-                unmeasurable += skipped
-                print(f"[pipeline] face prune {uid}: kept {len(keep)}, deleted {len(drop)}, "
-                      f"unmeasurable {skipped}", flush=True)
-            self._recluster_all()  # re-group the survivors with the existing clustering
-            people_after = visible_after = 0
-            for uid in self.store.face_user_ids():
-                people_after += self.store.person_count(uid)
-                visible_after += len(self.store.people(uid))
-            return {
-                "ok": True,
-                "faces_before": faces_before,
-                "faces_after": self.store.counts().get("faces", 0),
-                "faces_deleted": deleted,
-                "faces_measured": measured,
-                "faces_unmeasurable": unmeasurable,
-                "people_before": people_before,
-                "people_after": people_after,
-                "visible_before": visible_before,
-                "visible_after": visible_after,
-            }
-        finally:
-            self._maint.release()
+                    sharp = face_sharpness(bgr, box)
+                    crop_px = min(box[2] * iw, box[3] * ih)
+                    if face_quality_ok(r["det_score"], sharp, crop_px):
+                        keep.append((r["face_id"], sharp))
+                    else:
+                        drop.append(r["face_id"])
+                self.prune["photos_done"] += 1
+            measured += self.store.set_face_sharpness(uid, keep)
+            deleted += self.store.delete_faces(uid, drop)
+            unmeasurable += skipped
+            self.prune.update({"faces_measured": measured, "faces_deleted": deleted,
+                               "users_done": self.prune["users_done"] + 1})
+            print(f"[pipeline] face prune {uid}: kept {len(keep)}, deleted {len(drop)}, "
+                  f"unmeasurable {skipped}", flush=True)
+        self.prune["phase"] = "reclustering"
+        self._recluster_all()  # re-group the survivors with the existing clustering
+        people_after = visible_after = 0
+        for uid in self.store.face_user_ids():
+            people_after += self.store.person_count(uid)
+            visible_after += len(self.store.people(uid))
+        return {
+            "ok": True,
+            "faces_before": faces_before,
+            "faces_after": self.store.counts().get("faces", 0),
+            "faces_deleted": deleted,
+            "faces_measured": measured,
+            "faces_unmeasurable": unmeasurable,
+            "people_before": people_before,
+            "people_after": people_after,
+            "visible_before": visible_before,
+            "visible_after": visible_after,
+        }
 
     def _index_photo(self, p):
         pid = p["id"]

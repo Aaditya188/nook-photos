@@ -702,7 +702,16 @@ function indexerRequest(method, pathQuery, body) {
               reject(e);
             }
           } else {
-            reject(new Error('indexer ' + r.statusCode));
+            // Carry the status and body up so callers can tell a meaningful
+            // rejection (e.g. 409 "already running") from the indexer being down.
+            const err = new Error('indexer ' + r.statusCode);
+            err.status = r.statusCode;
+            try {
+              err.body = JSON.parse(chunks || '{}');
+            } catch (e) {
+              err.body = null;
+            }
+            reject(err);
           }
         });
       }
@@ -821,7 +830,11 @@ async function handleMergePeople(req, res, user) {
  * accumulated blurry non-faces into hundreds of spurious "people".
  *
  * Derived data only: face rows are rebuildable by re-indexing, and originals are never
- * touched. Global (not per-user), so admin-only. Takes minutes on a large library.
+ * touched. Global (not per-user), so admin-only.
+ *
+ * The pass takes minutes, so the indexer runs it on a worker and answers 202 straight
+ * away; poll GET for progress. Don't collapse every rejection into 503 — a 409 means a
+ * pass is already in flight, which is a very different thing from the indexer being down.
  */
 async function handlePruneFaces(req, res, user) {
   requireAdmin(user);
@@ -829,9 +842,23 @@ async function handlePruneFaces(req, res, user) {
   try {
     out = await indexerRequest('POST', '/faces/prune', {});
   } catch (e) {
+    if (e && e.status === 409) {
+      throw httpError(409, (e.body && e.body.error) || 'a face prune is already running');
+    }
     throw httpError(503, 'the face indexer is not available');
   }
-  if (out && out.error) throw httpError(409, out.error);
+  sendJson(res, 202, Object.assign({ ok: true, started: true }, out || {}));
+}
+
+/** Progress/result of the current or most recent face prune. */
+async function handlePruneFacesStatus(res, user) {
+  requireAdmin(user);
+  let out;
+  try {
+    out = await indexerRequest('GET', '/faces/prune', null);
+  } catch (e) {
+    throw httpError(503, 'the face indexer is not available');
+  }
   sendJson(res, 200, Object.assign({ ok: true }, out || {}));
 }
 
@@ -1720,6 +1747,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/people/merge' && req.method === 'POST') return handleMergePeople(req, res, user);
   // Must precede the /api/people/:id match below, or 'prune' reads as a personId.
   if (pathname === '/api/people/prune' && req.method === 'POST') return handlePruneFaces(req, res, user);
+  if (pathname === '/api/people/prune' && req.method === 'GET') return handlePruneFacesStatus(res, user);
   const personMatch = /^\/api\/people\/([A-Za-z0-9_-]+)(?:\/(photos))?$/.exec(pathname);
   if (personMatch) {
     const personId = personMatch[1];

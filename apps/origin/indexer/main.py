@@ -89,17 +89,35 @@ def _init():
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    # HTTP/1.1 means keep-alive, so a client that walks away without closing would
+    # otherwise park its handler thread in rfile.readline() forever. Drop idle sockets.
+    timeout = 30
 
     def log_message(self, *args):
         pass  # quiet
 
+    def handle(self):
+        # A client vanishing is a fact about the client, not a server fault, but
+        # socketserver logs it as a multi-frame traceback. Those buried the real signal
+        # in this log (25 of them in one boot) and made a completed prune look like a
+        # crash, so swallow just the connection-level ones — anything else still raises.
+        try:
+            super().handle()
+        except (ConnectionError, TimeoutError):
+            self.close_connection = True
+
     def _send(self, code, obj):
         body = json.dumps(obj).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionError, TimeoutError):
+            # Client hung up before we answered. Routine, and never interesting: the
+            # handler's work is already done and committed.
+            self.close_connection = True
 
     def _authed(self) -> bool:
         return self.headers.get("X-Indexer-Secret", "") == SECRET
@@ -119,11 +137,13 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/health":
             return self._send(200, {
                 "ok": True, "faces": FACES is not None, "places": PLACES is not None,
-                "counts": STORE.counts(), "status": PIPE.status,
+                "counts": STORE.counts(), "status": PIPE.status, "prune": PIPE.prune,
             })
         if not self._authed():
             return self._send(401, {"error": "unauthorized"})
         uid = q.get("userId", "_")
+        if u.path == "/faces/prune":
+            return self._send(200, {"prune": PIPE.prune})  # progress/result of the last pass
         if u.path == "/people":
             return self._send(200, {"people": STORE.people(uid)})
         if u.path == "/person-photos":
@@ -150,11 +170,11 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/faces/prune":
             # Maintenance: re-measure stored face crops, delete the blurry/tiny ones and
             # re-group the rest. Derived data only — original photos are never touched.
-            # Takes minutes on a large library, so call it with a generous timeout.
-            res = PIPE.prune_low_quality_faces()
-            if res.get("busy"):
-                return self._send(409, {"error": "prune already running"})
-            return self._send(200, res)
+            # Takes minutes, so it runs on a background thread and this answers at once;
+            # poll GET /faces/prune (or /health) for progress and the final result.
+            if not PIPE.start_prune():
+                return self._send(409, {"error": "prune already running", "prune": PIPE.prune})
+            return self._send(202, {"started": True, "prune": PIPE.prune})
         return self._send(404, {"error": "not found"})
 
     def do_PATCH(self):
