@@ -70,7 +70,13 @@ body {
   font-size: 15px;
 }
 
-body.no-scroll { overflow: hidden; }
+/* Viewer scroll lock (see hooks/useScrollLock.ts). The gutter stands in for the
+   scrollbar this hides, so nothing inside the body changes width — the photo
+   grid rebuilds its whole layout off container width. */
+body.no-scroll {
+  overflow: hidden;
+  padding-right: var(--scroll-lock-gutter, 0px);
+}
 
 button {
   font-family: inherit;

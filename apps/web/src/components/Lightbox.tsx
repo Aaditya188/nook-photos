@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PhotoRecord } from '@nook/core';
 import { useAuth } from '../state/auth';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { useActions, useLibraryQ } from '../state/data';
 import { useModals } from '../state/ui';
 import { useView } from '../state/view';
@@ -72,11 +73,9 @@ export function Lightbox({
     });
   };
 
-  // Lock page scroll only while a photo is actually displayed.
-  useEffect(() => {
-    document.body.classList.toggle('no-scroll', !!p);
-    return () => document.body.classList.remove('no-scroll');
-  }, [p]);
+  // Lock page scroll only while a photo is actually displayed (the hook saves
+  // and restores the offset the lock would otherwise destroy).
+  useScrollLock(!!p);
 
   // Keyboard: arrows navigate, i toggles info, Esc closes (menu first).
   useEffect(() => {

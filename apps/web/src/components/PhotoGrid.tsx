@@ -10,7 +10,9 @@
  * chunks hold real tiles, the rest are fixed-height spacers. Because row
  * heights are computed (not measured), spacer heights are exact up to header
  * chrome, which is measured once — so the scrollbar spans the whole library
- * from first paint and scrollbar-drag anywhere works.
+ * from first paint and scrollbar-drag anywhere works. The same arithmetic is
+ * what tells us which chunks the viewport covers when element geometry can't
+ * (nothing laid out yet, or an un-clamped scroll offset).
  */
 import {
   memo,
@@ -26,6 +28,7 @@ import { dayKeyOf, dayLabelOf } from '../lib/format';
 import { Tile } from './Tile';
 import { useView } from '../state/view';
 import { GRID_ZOOM_LEVELS, useGridZoomIndex } from '../hooks/useGridZoom';
+import { isScrollLocked, onScrollRestored } from '../hooks/useScrollLock';
 
 const CHUNK_TARGET = 120;
 const CHUNK_KEEP_PX = 2600;
@@ -234,9 +237,11 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
   const [layoutV, bump] = useState(0);
   const [scrollFrac, setScrollFrac] = useState(0);
 
-  useEffect(() => {
-    setActive(new Set([0]));
-  }, [chunks]);
+  // (No reset-to-chunk-0 on rebuild: the old set is still valid content to
+  // paint, and the layout effect below re-derives the right one before the
+  // frame lands. Resetting from a passive effect ran AFTER that, clobbering it
+  // — deep in the library that left one live chunk far above the viewport and
+  // the whole screen blank until the next scroll event.)
 
   // Month markers at cumulative pixel offsets — powers the timeline scrubber.
   const timeline = useMemo(() => {
@@ -265,6 +270,37 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chunks, list, grouped, layoutV]);
 
+  // Which chunks the viewport covers, computed from the scroll offset and the
+  // very same per-chunk heights the spacers get — no element geometry beyond
+  // the host's own offset. This is the honest answer when the rect scan below
+  // comes up empty; "chunk 0" is only the answer at the top of the library.
+  const rangeFromScroll = useCallback(() => {
+    const next = new Set<number>();
+    const host = hostRef.current;
+    if (!host || chunks.length === 0) return next;
+    // Host offset in document space, so chunk tops compare against scrollY.
+    const hostTop = host.getBoundingClientRect().top + window.scrollY;
+    const lo = window.scrollY - CHUNK_KEEP_PX - hostTop;
+    const hi = window.scrollY + window.innerHeight + CHUNK_KEEP_PX - hostTop;
+    let y = 0;
+    let nearest = 0;
+    let bestGap = Infinity;
+    for (let i = 0; i < chunks.length; i++) {
+      const h = chunkHeight(chunks[i]);
+      if (y + h >= lo && y <= hi) next.add(i);
+      const gap = y > hi ? y - hi : y + h < lo ? lo - y - h : 0;
+      if (gap < bestGap) {
+        bestGap = gap;
+        nearest = i;
+      }
+      y += h;
+    }
+    // Offset past either end (the browser hasn't clamped it yet): keep the
+    // closest chunk live so the viewport never holds nothing but spacers.
+    if (next.size === 0) next.add(nearest);
+    return next;
+  }, [chunks, chunkHeight]);
+
   // Fill/release chunks around the viewport (reads geometry first).
   const virtualize = useCallback(() => {
     const host = hostRef.current;
@@ -274,23 +310,37 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
     const next = new Set<number>();
     for (let i = 0; i < chunks.length; i++) {
       const el = chunkEls.current[i];
-      if (!el) continue;
+      // A detached element measures all zeros, which reads as "on screen" —
+      // never scan one (they can outlive a rebuild that changed chunk count).
+      if (!el || !el.isConnected) continue;
       const r = el.getBoundingClientRect();
       if (r.bottom >= min && r.top <= max) next.add(i);
     }
-    if (next.size === 0) next.add(0);
+    if (next.size === 0) for (const i of rangeFromScroll()) next.add(i);
     setActive((prev) => {
       let same = prev.size === next.size;
       if (same) for (const i of next) if (!prev.has(i)) { same = false; break; }
       return same ? prev : next;
     });
-  }, [chunks]);
+  }, [chunks, rangeFromScroll]);
+
+  // One pass of "where are we now": what to fill, and where the scrubber sits.
+  const sync = useCallback(() => {
+    virtualize();
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    setScrollFrac(max > 0 ? window.scrollY / max : 0);
+  }, [virtualize]);
 
   // Timestamp-throttled scroll listener (rAF pauses in embedded webviews).
   useEffect(() => {
     let lastAt = 0;
     let pending = false;
     const onScroll = () => {
+      // A viewer holds the body scroll lock: the offset is pinned at 0 and says
+      // nothing about where the user is. Acting on it would commit an active
+      // set for the top of the library and blank the grid the moment the lock
+      // lifts; the release notifies us instead (see below).
+      if (isScrollLocked()) return;
       const now = Date.now();
       const since = now - lastAt;
       if (since < 90) {
@@ -304,16 +354,24 @@ export function PhotoGrid({ list, grouped }: { list: PhotoRecord[]; grouped: boo
         return;
       }
       lastAt = now;
-      virtualize();
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollFrac(max > 0 ? window.scrollY / max : 0);
+      sync();
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, [virtualize]);
+  }, [sync]);
 
-  // After (re)layout: measure header chrome, refresh spacers, recycle.
+  // Recovery that doesn't wait for a scroll event: a closing viewer restores
+  // the scroll offset synchronously and tells us, so the live set is re-derived
+  // against the restored position in the same tick, before paint.
+  useEffect(() => onScrollRestored(sync), [sync]);
+
+  // After (re)layout: measure header chrome, refresh spacers, recycle. This is
+  // the only thing that recomputes the active set after a rebuild (a width
+  // change repacks every row), so it has to run for the current scroll offset.
   useLayoutEffect(() => {
+    // Refs are index-keyed: drop any left over from a longer chunk list before
+    // scanning, or a rebuild can be measured against elements that are gone.
+    chunkEls.current.length = chunks.length;
     measureChrome();
     bump((v) => v + 1);
     virtualize();

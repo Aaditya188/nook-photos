@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { PhotoRecord } from '@nook/core';
 import { PhotoGrid } from '../components/PhotoGrid';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { useView } from '../state/view';
 import { fmtCount, fmtDuration } from '../lib/format';
 import { SVG_DOWNLOAD, SVG_LOCK, Svg } from '../lib/icons';
@@ -194,10 +195,7 @@ function SharedViewer({ list, allowDownload }: { list: PhotoRecord[]; allowDownl
   const { lightboxId, closeLightbox, stepLightbox } = useView();
   const p = lightboxId ? list.find((x) => x.id === lightboxId) || null : null;
 
-  useEffect(() => {
-    document.body.classList.toggle('no-scroll', !!p);
-    return () => document.body.classList.remove('no-scroll');
-  }, [p]);
+  useScrollLock(!!p);
 
   useEffect(() => {
     if (!lightboxId) return;
