@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import url from 'node:url';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import replyFrom from '@fastify/reply-from';
 import fastifyStatic from '@fastify/static';
 import { ORIGIN, PORT, ORIGINALS_DIR } from './config.js';
@@ -53,8 +53,53 @@ const WEB_DIST =
   path.join(APPS_DIR, 'webui');
 const HAS_WEB = fs.existsSync(path.join(WEB_DIST, 'index.html'));
 
+/**
+ * Strip credentials out of a URL before it is ever logged.
+ *
+ * `<img>`/`<video>` can't send an Authorization header, so media auth also accepts
+ * `?token=` (see `bearer()`). Pino's default request serializer logs `req.url`
+ * verbatim, which wrote live session bearers into the service log in cleartext —
+ * and those tokens don't expire and are accepted on every authenticated route, so
+ * one log line is a permanent full-account credential. Redact, don't drop the URL:
+ * the path is genuinely useful and only the secret needs to go.
+ */
+const SECRET_PARAMS = ['token', 'st', 'password', 'code'];
+function redactUrl(raw: string): string {
+  const q = raw.indexOf('?');
+  if (q === -1) return raw;
+  // Hand-rolled rather than URLSearchParams: this runs on every request, and
+  // re-encoding could alter a path the operator is trying to read.
+  const params = raw
+    .slice(q + 1)
+    .split('&')
+    .map((pair) => {
+      const eq = pair.indexOf('=');
+      const key = eq === -1 ? pair : pair.slice(0, eq);
+      return SECRET_PARAMS.includes(key.toLowerCase()) ? `${key}=[REDACTED]` : pair;
+    });
+  return `${raw.slice(0, q)}?${params.join('&')}`;
+}
+
 const app = Fastify({
-  logger: { level: process.env.LOG_LEVEL ?? 'info' },
+  logger: {
+    level: process.env.LOG_LEVEL ?? 'info',
+    serializers: {
+      req(req: FastifyRequest) {
+        const host = req.headers?.host;
+        return {
+          method: req.method,
+          url: redactUrl(String(req.url ?? '')),
+          host: typeof host === 'string' ? host : undefined,
+          remoteAddress: req.ip,
+        };
+      },
+    },
+    // Belt and braces: if a token ever reaches a log field another way, drop it.
+    redact: {
+      paths: ['req.headers.authorization', 'req.headers.cookie', 'req.query.token'],
+      censor: '[REDACTED]',
+    },
+  },
   bodyLimit: 1024 * 1024 * 1024, // 1 GB — originals/videos stream through the proxy
 });
 
