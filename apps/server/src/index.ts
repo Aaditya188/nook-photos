@@ -40,18 +40,17 @@ import { listSnapshots, startSnapshotSchedule, takeSnapshot } from './snapshots.
 sharpLib.cache({ memory: 64, files: 0, items: 100 });
 sharpLib.concurrency(2);
 
-// The web dashboard served at /: the built React app (apps/web/dist) by
-// default, the vanilla apps/webui as automatic fallback, or NOOK_WEB_DIST.
+// The web dashboard served at /: the built React app (apps/web/dist), or
+// NOOK_WEB_DIST to point somewhere else. There is deliberately no fallback UI —
+// a second, unmaintained dashboard silently standing in for the real one hides
+// the fact that you never ran the build. If nothing is found the API still works
+// and we say so loudly at startup instead.
 const APPS_DIR = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
-const WEB_CANDIDATES = [
-  process.env.NOOK_WEB_DIST,
-  path.join(APPS_DIR, 'web', 'dist'),
-  path.join(APPS_DIR, 'webui'),
-].filter((p): p is string => !!p);
-const WEB_DIST =
-  WEB_CANDIDATES.find((p) => fs.existsSync(path.join(p, 'index.html'))) ??
-  path.join(APPS_DIR, 'webui');
-const HAS_WEB = fs.existsSync(path.join(WEB_DIST, 'index.html'));
+const WEB_CANDIDATES = [process.env.NOOK_WEB_DIST, path.join(APPS_DIR, 'web', 'dist')].filter(
+  (p): p is string => !!p,
+);
+const WEB_DIST = WEB_CANDIDATES.find((p) => fs.existsSync(path.join(p, 'index.html'))) ?? '';
+const HAS_WEB = WEB_DIST !== '';
 
 /**
  * Strip credentials out of a URL before it is ever logged.
@@ -134,6 +133,15 @@ if (HAS_WEB) {
     done(null, payload);
   });
   app.log.info(`serving web app from ${WEB_DIST}`);
+} else {
+  // Loud, actionable, and only a warning: the API and the mobile app are fine
+  // without a dashboard, so refusing to boot would be worse than saying this.
+  app.log.warn(
+    `no web dashboard found — the API is running but / will 404. ` +
+      `Build it with: npm run build -w @nook/web  ` +
+      `(looked in ${WEB_CANDIDATES.join(', ') || '(nothing configured)'}; ` +
+      `set NOOK_WEB_DIST to serve from elsewhere)`,
+  );
 }
 
 /**

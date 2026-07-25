@@ -19,7 +19,6 @@ This is an npm-workspaces monorepo:
 | [`packages/core`](packages/core) | Framework-agnostic TypeScript shared by every client: typed `NookClient` for the full server API, data types, TanStack Query hooks, MD3 theme tokens, formatting helpers. No DOM or Expo imports — platform storage is injected. |
 | [`apps/mobile`](apps/mobile) | **The phone app** — Expo (SDK 54) + Expo Router, runs in Expo Go. Zoomable date-grouped photo grid, backup & sync engine (diff against the server, thumbnail + original upload, resumable), custom video player with buffering states, biometric-gated private albums, people/places/search, light + dark themes. |
 | [`apps/web`](apps/web) | **The web dashboard** — React 19 + Vite + react-router + TanStack Query. Chunked **virtual scroller** (the DOM holds a few hundred tiles even in a 10k+ photo library, with a full-height scrollbar you can drag anywhere), authed blob thumbnail cache, progressive photo viewer with server-side HEIC decode, range-streamed video, multi-select with client-side ZIP download, password-locked Hidden / Recently Deleted albums behind a lock wall, dark / light / system theme, pinch or Ctrl-scroll grid density zoom. |
-| [`apps/webui`](apps/webui) | The original dependency-free vanilla-JS dashboard, kept fully working as the battle-tested fallback. Same feature set as `apps/web`. |
 | [`apps/server`](apps/server) | **Performance gateway** — Fastify + sharp. Size-bucketed thumbnails resized on the fly and disk-cached (`?w=128…1024`), HTTP-Range streaming for video/originals, server-side HEIC → JPEG for full-resolution viewing, transparent proxy to the origin API for everything else, and static hosting for the web dashboard. Media auth accepts `?token=` for `<img>`/`<video>` elements that can't send headers. |
 | [`apps/origin`](apps/origin) | **Origin server** — the photo store itself: a zero-dependency Node file server (accounts with scrypt passwords, bearer tokens, library/albums/hidden/deleted APIs, uploads) plus the optional Python **AI indexer** (semantic search, face clustering, places — GPU-accelerated when available). All storage is plain files + one `db.json`; your library is never locked into a database. |
 | [`design-reference`](design-reference) | The Stitch design screens (light + dark) the apps are built against. |
@@ -137,7 +136,7 @@ First run: start the server, open the web app, and create your admin account —
 ## Repo conventions
 
 - `npm install` at the root hoists everything; `@nook/core` is symlinked into both apps.
-- TypeScript everywhere except `apps/webui` (intentionally dependency-free vanilla JS).
+- TypeScript everywhere except `apps/origin/server.js`, which is deliberately dependency-free vanilla Node so the photo store has no supply chain at all.
 - The web app reuses the vanilla dashboard's stylesheet and markup classes 1:1, so the two stay visually identical.
 
 ## License

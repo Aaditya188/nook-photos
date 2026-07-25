@@ -35,11 +35,13 @@ Non-destructive by design: the server always keeps the untouched original; an ed
 |---|---|---|
 | ✅ Semantic search, people (face clustering), places | | — |
 | ✅ Timeline scrubber with month/year bubble | | — |
+| ✅ Faces management: name a person, merge clusters, hide a person | | — |
+| ✅ Map view: clustered pins, tap-region to browse | | — |
+| ✅ Blur-aware face indexing (sharpness gate + prune of already-stored junk) | | — |
 | **Search filters & chips**: `person:`, `type:`, date ranges, place; recent + saved searches | Search power-usage compounds | M |
-| **Faces management**: name/merge/split people, "not this person", hide a person | Clustering is only as good as its corrections | M |
-| Map view: clustered pins, tap-region to browse | The GPS data is already indexed | M |
-| OCR: search text inside screenshots/documents | "that Wi-Fi password screenshot" | M |
+| **Split a person** / "not this person" | Merge exists; splitting a bad cluster does not | M |
 | Smart albums (saved rule: person + place + date range, auto-updating) | Zero-maintenance organization | M |
+| ~~OCR: search text inside screenshots/documents~~ | Built, then removed on request — it was the smallest model (15 MB) and not worth its complexity. Revert `3de34ae`'s parent to restore. | — |
 
 ## 4 · Relive moments (delight — the retention driver)
 
@@ -47,16 +49,17 @@ Non-destructive by design: the server always keeps the untouched original; an ed
 |---|---|---|
 | ✅ Memories: "on this day" per-year cards | | — |
 | ✅ Slideshow in the viewer | | — |
-| Trip detection (time + location clustering → auto trip albums) | The photos people actually revisit | L |
-| Monthly / year-end recap ("Your July", "2026 wrapped") | Shareable pride | M |
+| ✅ Trip detection (time + location clustering → auto trip albums) | | — |
 | Memories push notification (mobile, morning digest) | Brings people back daily | S |
+| ~~Monthly / year-end recap~~ | Built, then removed on request as unused surface area | — |
 | Home-screen widget (needs dev build) | Ambient delight | M |
 
 ## 5 · Share with people I love (connection)
 
 | Feature | Why | Size |
 |---|---|---|
-| **Album share links**: expiring, optional password, optional download; viewable with no account | Makes Nook usable by the whole family | M |
+| ✅ Album share links: expiring, optional password, optional download; viewable with no account | | — |
+| ✅ Per-user album grants at view / edit level | | — |
 | Shared albums (multiple accounts contribute) | Group trips | L |
 | Partner sharing (auto-share everything / by person with one account) | The Google Photos killer feature for couples | L |
 | One-tap "send to another user on this server" | Household convenience | S |
@@ -65,28 +68,32 @@ Non-destructive by design: the server always keeps the untouched original; an ed
 
 | Feature | Why | Size |
 |---|---|---|
-| **Free up space** (mobile): delete local copies verified backed-up | The reason to self-host at all | M |
-| Web drag-and-drop upload | Back up the laptop's downloads folder | M |
-| Storage insights: largest files, per-year breakdown, per-user quotas | Admin peace of mind | S |
-| Duplicate finder (hashes already exist server-side) | Reclaim space, reduce clutter | M |
+| ✅ **Free up space** (mobile): deletes local copies only after re-verifying the server holds them | | — |
+| ✅ Web drag-and-drop upload, incl. folders and Google Takeout `.zip` | | — |
+| ✅ Duplicate finder (perceptual dHash verification, not just size/name) | | — |
+| ~~Storage insights~~ | Built, then removed on request — nobody wants to audit their own disk | — |
 
 ## Platform & security foundation
 
 - ✅ Biometric unlock (WebAuthn on web, Face ID/fingerprint on mobile), password-locked private albums, HEIC pipeline, range-streamed video, virtual scrolling, ZIP export
-- Signed-in **devices list with revoke**; token expiry (S)
-- **2FA (TOTP)** for accounts (M)
+- ✅ Signed-in **devices list with revoke** + friendly device names, **2FA (TOTP)**, per-user accounts with admin roles
+- ✅ Runs on Raspberry Pi / Apple Silicon / old x86: portable install, provider auto-detection, every AI model optional
+- **Session token expiry** (S) — ⚠️ tokens currently never expire, so a leaked one is valid until an explicit logout. The highest-value security item on this list.
+- **Short-TTL media tokens** (M) — `?token=` exists because `<img>` can't send headers, but it is currently the full session bearer. A media-scoped, expiring token would shrink the blast radius of a leaked URL.
+- `db.json` → SQLite (M) — the single-file store is rewritten on every mutation; it is the real scaling ceiling
+- Idle-unload the AI models (S) — the indexer holds ~3.3 GB RAM and ~2.9 GB VRAM with nothing queued
 - Auto-relock private albums after idle (S)
-- **PWA**: installable web app with offline shell (S)
+- **PWA**: installable web app with offline shell (S — manifest and service worker already exist)
 - EAS builds → App Store/Play presence, share-sheet "Save to Nook", background sync (L)
 - Admin audit log (S)
 
 ## Suggested build order
 
-1. **Editing v1** (crop/rotate + light/color, web) — the single biggest feature-gap vs. every competitor
-2. **Album share links** — unlocks families; pairs with the existing rate-limiting
-3. **Backup Health + server snapshots** — the trust story, cheap to build
-4. **Free up space (mobile)** — the self-hosting payoff
-5. **Faces management + search filters** — makes the AI feel trainable
-6. Then: map view, OCR, PWA, 2FA/devices, trips & recaps
+1. **Session token expiry** — the one open security gap; everything else is polish by comparison
+2. **`db.json` → SQLite** — unblocks scale and any future multi-device sync
+3. **Search filters & chips** — the retrieval story is strong but has no structured query surface
+4. **Split a person / "not this person"** — merge exists, so clusters can be joined but never corrected
+5. **Idle-unload the AI models** — the biggest resource win, and what makes low-power hosts pleasant
+6. Then: smart albums, shared albums, partner sharing, PWA, widgets
 
 Contributions welcome — most S/M items are well-isolated. See the package guide in the [README](README.md).

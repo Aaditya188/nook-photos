@@ -5,8 +5,8 @@ Read [README.md](README.md) for architecture and [ROADMAP.md](ROADMAP.md) for th
 ## Layout
 
 - `apps/origin` — zero-dependency Node photo store + accounts API (port 8080) + Python AI indexer (port 8091). Data = plain files + one `db.json` under `NOOK_DATA_DIR`.
-- `apps/server` — Fastify + sharp gateway (port 8090): sized thumbnails, HTTP-Range streaming, HEIC→JPEG, login rate-limiting, transparent proxy to origin, serves the web app (`apps/web/dist`, fallback `apps/webui`, override `NOOK_WEB_DIST`).
-- `apps/web` — React 19 + Vite dashboard. `packages/core` — shared TS client/types/hooks. `apps/mobile` — Expo SDK 54 (runs in Expo Go; pinned to what the stores ship). `apps/webui` — legacy vanilla dashboard (kept as fallback; do not add features there).
+- `apps/server` — Fastify + sharp gateway (port 8090): sized thumbnails, HTTP-Range streaming, HEIC→JPEG, login rate-limiting, transparent proxy to origin, serves the web app (`apps/web/dist`, override `NOOK_WEB_DIST`). There is no fallback UI: if the build is missing it logs a loud warning and `/` 404s while the API keeps working.
+- `apps/web` — React 19 + Vite dashboard. `packages/core` — shared TS client/types/hooks. `apps/mobile` — Expo SDK 54 (runs in Expo Go; pinned to what the stores ship).
 
 ## Commands
 
