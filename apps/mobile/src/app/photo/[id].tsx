@@ -1,9 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert } from 'react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
+  useNookClient,
   usePatchPhoto,
   useDeletePhoto,
   useRestorePhoto,
@@ -16,6 +19,7 @@ import {
   type PhotoRecord,
 } from '@nook/core';
 import { RemoteOriginal } from '@/components/RemoteImage';
+import { LivePhoto } from '@/components/LivePhoto';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { Text } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
@@ -24,6 +28,7 @@ import { useTheme } from '@/theme';
 export default function PhotoViewer() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useTheme();
+  const client = useNookClient();
   const { width, height } = useWindowDimensions();
   const photos = useViewer((s) => s.photos);
   const patch = usePatchPhoto();
@@ -35,9 +40,41 @@ export default function PhotoViewer() {
   const [index, setIndex] = useState(startIndex);
   const [chrome, setChrome] = useState(true);
   const [info, setInfo] = useState(false);
+  const [slideshow, setSlideshow] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const listRef = useRef<FlatList<PhotoRecord>>(null);
 
   const current = photos[index] ?? photos[startIndex];
+
+  // Slideshow: auto-advance every 4s (wrapping), chrome hidden. Any tap stops it.
+  useEffect(() => {
+    if (!slideshow || photos.length < 2) return;
+    const timer = setInterval(() => {
+      setIndex((i) => {
+        const next = (i + 1) % photos.length;
+        listRef.current?.scrollToIndex({ index: next, animated: true });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [slideshow, photos.length]);
+
+  // Share the original: download to cache (authed), then hand off to the OS sheet.
+  async function shareCurrent() {
+    if (sharing || !(await Sharing.isAvailableAsync())) return;
+    setSharing(true);
+    try {
+      const safe = current.filename.replace(/[^\w.\-]+/g, '_') || `${current.id}.jpg`;
+      const dest = `${FileSystem.cacheDirectory}${safe}`;
+      const dl = await FileSystem.downloadAsync(client.originalUrl(current.id), dest, {
+        headers: client.authHeaders(),
+      });
+      await Sharing.shareAsync(dl.uri);
+    } catch {
+      Alert.alert('Could not share', 'The original could not be downloaded to share.');
+    }
+    setSharing(false);
+  }
 
   const detail = useMemo(() => {
     if (!current) return [];
@@ -76,9 +113,21 @@ export default function PhotoViewer() {
         keyExtractor={(p) => p.id}
         onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
         renderItem={({ item, index: i }) => (
-          <Pressable onPress={() => setChrome((c) => !c)} style={{ width, height, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable
+            onPress={() => {
+              if (slideshow) {
+                setSlideshow(false);
+                setChrome(true);
+              } else {
+                setChrome((c) => !c);
+              }
+            }}
+            style={{ width, height, alignItems: 'center', justifyContent: 'center' }}
+          >
             {item.mediaType === 'video' ? (
               <VideoPlayer photo={item} active={i === index} />
+            ) : item.hasMotion ? (
+              <LivePhoto photo={item} width={width} height={height} />
             ) : (
               <RemoteOriginal photoId={item.id} style={{ width, height }} contentFit="contain" />
             )}
@@ -131,9 +180,20 @@ export default function PhotoViewer() {
                     color={current.favorite ? '#ff6b8a' : '#fff'}
                     onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
                   />
+                  <IconBtn name="ios-share" onPress={shareCurrent} />
                   <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />
                   {current.mediaType !== 'video' ? (
                     <IconBtn name="tune" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: current.id } })} />
+                  ) : null}
+                  {photos.length > 1 ? (
+                    <IconBtn
+                      name="slideshow"
+                      onPress={() => {
+                        setSlideshow(true);
+                        setChrome(false);
+                        setInfo(false);
+                      }}
+                    />
                   ) : null}
                   <IconBtn
                     name={current.hidden ? 'visibility' : 'visibility-off'}
