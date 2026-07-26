@@ -23,6 +23,8 @@ export interface AppPrefs {
   confirmDelete: boolean;
   /** Autoplay videos when opened in the viewer. */
   autoplayVideos: boolean;
+  /** Accent color hex, or null for the default (green). */
+  accent: string | null;
 }
 
 interface SettingsState {
@@ -48,6 +50,7 @@ const DEFAULT_PREFS: AppPrefs = {
   haptics: true,
   confirmDelete: false,
   autoplayVideos: true,
+  accent: null,
 };
 
 function clampColumns(n: unknown): number {

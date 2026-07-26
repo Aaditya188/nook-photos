@@ -10,6 +10,16 @@ import { useTheme } from '@/theme';
 
 const MODES: (ThemeMode | 'system')[] = ['light', 'dark', 'system'];
 
+// null = the default green accent; the swatch shows what green looks like.
+const ACCENTS: { name: string; value: string | null; swatch: string }[] = [
+  { name: 'Green', value: null, swatch: '#57d38a' },
+  { name: 'Blue', value: '#5b9dff', swatch: '#5b9dff' },
+  { name: 'Purple', value: '#b18cff', swatch: '#b18cff' },
+  { name: 'Pink', value: '#ff6b8a', swatch: '#ff6b8a' },
+  { name: 'Orange', value: '#ff9f5b', swatch: '#ff9f5b' },
+  { name: 'Teal', value: '#4fd6c7', swatch: '#4fd6c7' },
+];
+
 export default function ProfileScreen() {
   const t = useTheme();
   const cachedUser = useAuth((s) => s.user);
@@ -164,6 +174,31 @@ export default function ProfileScreen() {
               {i < MODES.length - 1 ? <Divider /> : null}
             </View>
           ))}
+        </Card>
+        <Card style={{ gap: t.spacing.md }}>
+          <Text variant="body">Accent color</Text>
+          <View style={{ flexDirection: 'row', gap: t.spacing.md }}>
+            {ACCENTS.map((a) => {
+              const active = (prefs.accent ?? null) === a.value;
+              return (
+                <Pressable key={a.name} onPress={() => setPref('accent', a.value)} hitSlop={6}>
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      backgroundColor: a.swatch,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: active ? 2 : 0,
+                      borderColor: t.colors.onSurface,
+                    }}>
+                    {active ? <MaterialIcons name="check" size={18} color="#06140c" /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
         </Card>
       </View>
 
