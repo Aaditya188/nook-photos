@@ -10,6 +10,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useNookClient, formatDuration, type PhotoRecord } from '@nook/core';
 import { Text } from '@/components/ui';
+import { useSettings } from '@/store/settings';
 
 export function VideoPlayer({ photo, active }: { photo: PhotoRecord; active: boolean }) {
   const client = useNookClient();
@@ -41,10 +42,13 @@ export function VideoPlayer({ photo, active }: { photo: PhotoRecord; active: boo
     return () => subs.forEach((s) => s.remove());
   }, [player]);
 
-  // Pause when this page isn't the active pager item.
+  const autoplay = useSettings((s) => s.prefs.autoplayVideos);
+  // Pause when this page isn't the active pager item; autoplay the active one
+  // when the preference is on (expo-video queues play() until it's ready).
   useEffect(() => {
     if (!active) player.pause();
-  }, [active, player]);
+    else if (autoplay) player.play();
+  }, [active, autoplay, player]);
 
   function toggleControls() {
     setControls((c) => !c);

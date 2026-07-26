@@ -23,6 +23,7 @@ import { LivePhoto } from '@/components/LivePhoto';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { Text } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
+import { useSettings } from '@/store/settings';
 import { useTheme } from '@/theme';
 
 export default function PhotoViewer() {
@@ -203,8 +204,18 @@ export default function PhotoViewer() {
                   <IconBtn
                     name="delete-outline"
                     onPress={() => {
-                      del.mutate(current.id);
-                      router.back();
+                      const doDelete = () => {
+                        del.mutate(current.id);
+                        router.back();
+                      };
+                      if (useSettings.getState().prefs.confirmDelete) {
+                        Alert.alert('Delete this item?', 'It moves to Recently Deleted.', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Delete', style: 'destructive', onPress: doDelete },
+                        ]);
+                      } else {
+                        doDelete();
+                      }
                     }}
                   />
                 </>

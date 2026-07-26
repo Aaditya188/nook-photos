@@ -16,6 +16,8 @@ export default function ProfileScreen() {
   const logout = useAuth((s) => s.logout);
   const themeMode = useSettings((s) => s.themeMode);
   const setThemeMode = useSettings((s) => s.setThemeMode);
+  const prefs = useSettings((s) => s.prefs);
+  const setPref = useSettings((s) => s.setPref);
   const account = useAccount();
   const client = useNookClient();
 
@@ -119,6 +121,31 @@ export default function ProfileScreen() {
 
       <View style={{ gap: t.spacing.sm }}>
         <Text variant="label" color={t.colors.onSurfaceVariant}>
+          PREFERENCES
+        </Text>
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, padding: t.spacing.lg }}>
+            <MaterialIcons name="grid-view" size={22} color={t.colors.onSurfaceVariant} />
+            <Text variant="body" style={{ flex: 1 }}>Grid size</Text>
+            <Pressable onPress={() => setPref('gridColumns', Math.max(2, prefs.gridColumns - 1))} hitSlop={8} disabled={prefs.gridColumns <= 2}>
+              <MaterialIcons name="remove-circle-outline" size={24} color={prefs.gridColumns <= 2 ? t.colors.outline : t.colors.primaryContainer} />
+            </Pressable>
+            <Text variant="body" style={{ minWidth: 20, textAlign: 'center' }}>{prefs.gridColumns}</Text>
+            <Pressable onPress={() => setPref('gridColumns', Math.min(5, prefs.gridColumns + 1))} hitSlop={8} disabled={prefs.gridColumns >= 5}>
+              <MaterialIcons name="add-circle-outline" size={24} color={prefs.gridColumns >= 5 ? t.colors.outline : t.colors.primaryContainer} />
+            </Pressable>
+          </View>
+          <Divider />
+          <PrefToggle icon="vibration" label="Haptic feedback" value={prefs.haptics} onChange={(v) => setPref('haptics', v)} />
+          <Divider />
+          <PrefToggle icon="delete-outline" label="Confirm before deleting" value={prefs.confirmDelete} onChange={(v) => setPref('confirmDelete', v)} />
+          <Divider />
+          <PrefToggle icon="play-circle-outline" label="Autoplay videos" value={prefs.autoplayVideos} onChange={(v) => setPref('autoplayVideos', v)} />
+        </Card>
+      </View>
+
+      <View style={{ gap: t.spacing.sm }}>
+        <Text variant="label" color={t.colors.onSurfaceVariant}>
           APPEARANCE
         </Text>
         <Card style={{ padding: 6 }}>
@@ -160,6 +187,37 @@ function AccountRow({
       <MaterialIcons name={icon} size={22} color={t.colors.onSurfaceVariant} />
       <Text variant="body" style={{ flex: 1 }}>{label}</Text>
       <MaterialIcons name="chevron-right" size={22} color={t.colors.outline} />
+    </Pressable>
+  );
+}
+
+function PrefToggle({
+  icon,
+  label,
+  value,
+  onChange,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable onPress={() => onChange(!value)} style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, padding: t.spacing.lg }}>
+      <MaterialIcons name={icon} size={22} color={t.colors.onSurfaceVariant} />
+      <Text variant="body" style={{ flex: 1 }}>{label}</Text>
+      <View
+        style={{
+          width: 48,
+          height: 28,
+          borderRadius: 14,
+          padding: 3,
+          backgroundColor: value ? t.colors.primaryContainer : t.colors.surfaceContainerHighest,
+          alignItems: value ? 'flex-end' : 'flex-start',
+        }}>
+        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: value ? t.colors.onPrimary : t.colors.outline }} />
+      </View>
     </Pressable>
   );
 }

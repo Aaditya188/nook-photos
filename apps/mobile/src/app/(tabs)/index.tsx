@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Pressable, ActivityIndicator } from 'react-native';
+import { View, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, useDeletePhoto, type PhotoRecord } from '@nook/core';
@@ -8,6 +8,7 @@ import { PeopleRail } from '@/components/PeopleRail';
 import { MemoriesRail } from '@/components/MemoriesRail';
 import { Text, BrandLoader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
+import { useSettings } from '@/store/settings';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +17,9 @@ export default function LibraryScreen() {
   const library = useLibrary();
   const deletePhoto = useDeletePhoto();
   const setViewerList = useViewer((s) => s.setList);
+  const gridColumns = useSettings((s) => s.prefs.gridColumns);
+  const setPref = useSettings((s) => s.setPref);
+  const cycleDensity = () => setPref('gridColumns', gridColumns >= 5 ? 2 : gridColumns + 1);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -51,9 +55,24 @@ export default function LibraryScreen() {
 
   async function deleteSelected() {
     const ids = [...selected];
-    setSelectMode(false);
-    setSelected(new Set());
-    for (const id of ids) await deletePhoto.mutateAsync(id).catch(() => {});
+    if (ids.length === 0) return;
+    const run = async () => {
+      setSelectMode(false);
+      setSelected(new Set());
+      for (const id of ids) await deletePhoto.mutateAsync(id).catch(() => {});
+    };
+    if (useSettings.getState().prefs.confirmDelete) {
+      Alert.alert(
+        `Delete ${ids.length} ${ids.length === 1 ? 'item' : 'items'}?`,
+        'They move to Recently Deleted.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: run },
+        ],
+      );
+    } else {
+      run();
+    }
   }
 
   const header = () => (
@@ -67,6 +86,9 @@ export default function LibraryScreen() {
             </Pressable>
           ) : (
             <>
+              <Pressable onPress={cycleDensity} hitSlop={8} accessibilityLabel="Change grid size">
+                <MaterialIcons name="grid-view" size={24} color={t.colors.onSurface} />
+              </Pressable>
               <Pressable onPress={() => router.push('/search')} hitSlop={8}>
                 <MaterialIcons name="search" size={26} color={t.colors.onSurface} />
               </Pressable>
@@ -111,6 +133,7 @@ export default function LibraryScreen() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <PhotoGrid
         grouped
+        columns={gridColumns}
         photos={photos}
         renderHeader={header}
         onPressPhoto={openPhoto}

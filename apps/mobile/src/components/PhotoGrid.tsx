@@ -16,6 +16,7 @@ import type { PhotoRecord } from '@nook/core';
 import { formatDuration, groupByDay } from '@nook/core';
 import { RemoteThumb } from '@/components/RemoteImage';
 import { Text } from '@/components/ui';
+import { useSettings } from '@/store/settings';
 import { useTheme } from '@/theme';
 
 const GAP = 2;
@@ -145,6 +146,9 @@ function GroupedGrid({
   // the screen provides onSetSelect. A quick swipe still scrolls the list — the
   // pan only activates after a short hold, so scrolling is unaffected.
   const dragEnabled = !!onSetSelect;
+  const hapticsOn = useSettings((s) => s.prefs.haptics);
+  const hapticsRef = useRef(hapticsOn);
+  hapticsRef.current = hapticsOn;
   // Frames are stored in CONTENT space (window-y at capture + scroll offset at
   // capture), so a later scroll doesn't invalidate them: current window-y =
   // contentY - currentScrollY. onLayout doesn't re-fire on scroll, so this is
@@ -181,12 +185,12 @@ function GroupedGrid({
         onEnterSelect?.();
         dragMode.current = !(selectedRef.current?.has(id) ?? false);
         lastId.current = null;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        if (hapticsRef.current) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
       if (id !== lastId.current) {
         onSetSelect?.(id, dragMode.current);
         lastId.current = id;
-        Haptics.selectionAsync().catch(() => {}); // light tick per new cell
+        if (hapticsRef.current) Haptics.selectionAsync().catch(() => {}); // light tick per new cell
       }
     },
     [hitTest, onEnterSelect, onSetSelect],
