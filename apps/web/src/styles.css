@@ -800,6 +800,46 @@ button:focus-visible {
   display: flex;
 }
 
+/* ---- Live Photo: press and hold the still to play its clip ---- */
+.lb-img-wrap:has(.lb-live-badge) { cursor: grab; }
+
+.lb-live-video {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.lb-live-video.playing { opacity: 1; }
+
+.lb-live-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px 5px 7px;
+  border-radius: 999px;
+  background: rgba(8, 10, 9, 0.58);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.lb-live-badge svg { width: 15px; height: 15px; }
+/* Fade the badge while the clip plays so it doesn't sit on top of the motion. */
+.lb-live-badge.playing { opacity: 0.35; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-live-video,
+  .lb-live-badge { transition: none; }
+}
+
 .lb-backdrop {
   position: absolute;
   inset: 0;

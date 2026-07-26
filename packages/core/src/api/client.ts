@@ -77,6 +77,36 @@ export class NookClient {
     return `${this.baseUrl}/api/photos/${id}/original`;
   }
 
+  /**
+   * The short clip paired with a Live Photo. Range-served like any other video, so a
+   * press-and-hold can start playing without fetching the whole thing. Only meaningful
+   * when the record's `hasMotion` is true.
+   */
+  motionUrl(id: string): string {
+    return `${this.baseUrl}/api/photos/${id}/motion`;
+  }
+
+  /**
+   * Upload a Live Photo's motion clip (raw bytes, like updateAvatar — request() would
+   * JSON-stringify it). Mobile uses FileSystem.uploadAsync against motionUrl() instead,
+   * so it can stream from disk rather than buffering the clip in memory.
+   */
+  async putMotion(
+    id: string,
+    bytes: Blob | ArrayBuffer | Uint8Array,
+    contentType = 'video/quicktime',
+  ): Promise<{ ok: true; hasMotion: true; bytes: number }> {
+    const headers: Record<string, string> = { 'Content-Type': contentType };
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    const res = await fetch(this.url(`/api/photos/${id}/motion`), {
+      method: 'PUT',
+      headers,
+      body: bytes as BodyInit,
+    });
+    if (!res.ok) throw new NookApiError(res.status, `HTTP ${res.status}`);
+    return (await res.json()) as { ok: true; hasMotion: true; bytes: number };
+  }
+
   /** Streaming/range endpoint for video playback (chunked). */
   streamUrl(id: string): string {
     return `${this.baseUrl}/api/photos/${id}/original`;

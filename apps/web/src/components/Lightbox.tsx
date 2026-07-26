@@ -352,8 +352,38 @@ function VideoStage({
 }
 
 function ImageStage({ photo: p }: { photo: PhotoRecord }) {
+  const { mediaUrl } = useAuth();
   const [src, setSrc] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Live Photo playback. Gated on hasMotion, never on `live`: `live` is metadata from
+  // the phone and plenty of photos carry it with no clip backed up.
+  const canPlayLive = p.hasMotion === true;
+  const [playing, setPlaying] = useState(false);
+  const [motionBroken, setMotionBroken] = useState(false);
+  const motionRef = useRef<HTMLVideoElement | null>(null);
+
+  // The clip is whatever iOS captured — usually HEVC in a .mov, which not every
+  // browser decodes. On error we retire the badge for this photo rather than showing
+  // a broken frame or an error the user can do nothing about.
+  const startLive = () => {
+    if (!canPlayLive || motionBroken) return;
+    setPlaying(true);
+    const v = motionRef.current;
+    if (v) {
+      v.currentTime = 0;
+      void v.play().catch(() => setMotionBroken(true));
+    }
+  };
+  const stopLive = () => {
+    setPlaying(false);
+    motionRef.current?.pause();
+  };
+
+  useEffect(() => {
+    // Reset when the viewer moves to another photo.
+    setPlaying(false);
+    setMotionBroken(false);
+  }, [p.id]);
 
   useEffect(() => {
     let alive = true;
@@ -378,8 +408,16 @@ function ImageStage({ photo: p }: { photo: PhotoRecord }) {
     };
   }, [p.id, p.thumbUrl, p.uploadState, p.editedAt]);
 
+  const showBadge = canPlayLive && !motionBroken;
+
   return (
-    <div className="lb-img-wrap">
+    <div
+      className="lb-img-wrap"
+      onPointerDown={showBadge ? startLive : undefined}
+      onPointerUp={showBadge ? stopLive : undefined}
+      onPointerLeave={showBadge ? stopLive : undefined}
+      onPointerCancel={showBadge ? stopLive : undefined}
+    >
       {src ? (
         <img
           className={'lb-media' + (loaded ? ' loaded' : '')}
@@ -388,6 +426,24 @@ function ImageStage({ photo: p }: { photo: PhotoRecord }) {
           src={src}
           onLoad={() => setLoaded(true)}
         />
+      ) : null}
+      {showBadge ? (
+        <>
+          <video
+            ref={motionRef}
+            className={'lb-media lb-live-video' + (playing ? ' playing' : '')}
+            src={mediaUrl(`/api/photos/${p.id}/motion`)}
+            preload="metadata"
+            playsInline
+            muted
+            onEnded={stopLive}
+            onError={() => setMotionBroken(true)}
+          />
+          <div className={'lb-live-badge' + (playing ? ' playing' : '')} aria-hidden="true">
+            <Svg html={ICON.live} />
+            <span>LIVE</span>
+          </div>
+        </>
       ) : null}
       <div className={'lb-video-loading' + (loaded ? ' hidden' : '')}>
         <span className="spinner" />

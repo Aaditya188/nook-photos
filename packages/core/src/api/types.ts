@@ -70,6 +70,12 @@ export interface PhotoRecord {
   deletedAt: string | null;
   thumbUrl: string;
   originalUrl: string;
+  /**
+   * True only when a Live Photo's motion clip is actually backed up. `live` is just
+   * metadata from the phone and is set on plenty of photos whose clip was never
+   * uploaded, so gate playback on THIS, never on `live`.
+   */
+  hasMotion?: boolean;
   /** Set by the gateway when a non-destructive edit recipe exists (cache-bust key). */
   editedAt?: number;
 }

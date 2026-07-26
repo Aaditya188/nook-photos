@@ -152,6 +152,12 @@ async function backupAsset(client: NookClient, asset: MediaLibrary.Asset, prefs:
   const filename = asset.filename || `IMG_${asset.id.slice(0, 8)}`;
   const exif = (info.exif ?? {}) as Record<string, any>;
 
+  // iOS reports what kind of capture this was; the uploader previously sent none of
+  // it, which is why the Live Photos / Panoramas / Screenshots categories only ever
+  // filled from older clients. Android leaves mediaSubtypes undefined.
+  const subtypes: string[] = (asset as { mediaSubtypes?: string[] }).mediaSubtypes ?? [];
+  const isLive = subtypes.includes('livePhoto');
+
   const meta: PhotoUpload = {
     localIdentifier: asset.id,
     filename,
@@ -161,6 +167,10 @@ async function backupAsset(client: NookClient, asset: MediaLibrary.Asset, prefs:
     bytes: 0,
     mediaType: isVideo ? 'video' : 'photo',
     duration: isVideo ? asset.duration : null,
+    live: isLive,
+    panorama: subtypes.includes('panorama'),
+    screenshot: subtypes.includes('screenshot'),
+    portrait: subtypes.includes('depthEffect'),
     latitude: info.location?.latitude ?? exif?.GPSLatitude ?? null,
     longitude: info.location?.longitude ?? exif?.GPSLongitude ?? null,
     cameraMake: exif?.['{TIFF}']?.Make ?? exif?.Make ?? null,
@@ -211,5 +221,40 @@ async function backupAsset(client: NookClient, asset: MediaLibrary.Asset, prefs:
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       headers: { ...client.authHeaders(), 'Content-Type': contentType(filename) },
     });
+
+    // Live Photo motion clip. AssetInfo.pairedVideoAsset is iOS-only and present only
+    // when mediaSubtypes includes 'livePhoto'. Uploaded AFTER the still, and failure is
+    // non-fatal: a Live Photo without its clip is still a perfectly good photo, and the
+    // server reports hasMotion=false so the viewers just don't offer playback.
+    if (isLive) {
+      await uploadMotion(client, record.id, info).catch(() => {
+        /* non-fatal — the still is already safely backed up */
+      });
+    }
   }
+}
+
+/** Upload the .mov paired with a Live Photo, streaming from disk. iOS only. */
+async function uploadMotion(
+  client: NookClient,
+  photoId: string,
+  info: MediaLibrary.AssetInfo,
+): Promise<void> {
+  const paired = (info as { pairedVideoAsset?: MediaLibrary.Asset }).pairedVideoAsset;
+  if (!paired) return;
+  // The paired asset may need its own info fetch to get a readable local uri.
+  let uri = paired.uri;
+  if (!uri || !uri.startsWith('file:')) {
+    const pi = await MediaLibrary.getAssetInfoAsync(paired, { shouldDownloadFromNetwork: true });
+    uri = pi.localUri ?? paired.uri;
+  }
+  if (!uri) return;
+  const stat = await FileSystem.getInfoAsync(uri);
+  const size = (stat as { size?: number }).size ?? 0;
+  if (!stat.exists || size === 0 || size > MAX_VIDEO_BYTES) return;
+  await FileSystem.uploadAsync(client.url(`/api/photos/${photoId}/motion`), uri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { ...client.authHeaders(), 'Content-Type': 'video/quicktime' },
+  });
 }
