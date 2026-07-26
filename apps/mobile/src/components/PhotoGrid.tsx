@@ -66,20 +66,26 @@ function Cell({
   const t = useTheme();
   const cell = size - GAP;
   const ref = useRef<View>(null);
+  const mounted = useRef(true);
   useEffect(() => {
+    mounted.current = true;
     if (!registerFrame) return;
-    return () => registerFrame(item.id, null); // drop this cell's rect when it unmounts
+    return () => {
+      mounted.current = false;
+      registerFrame(item.id, null); // drop this cell's rect when it unmounts
+    };
   }, [registerFrame, item.id]);
+  const measure = () =>
+    ref.current?.measureInWindow((x, y, w, h) => {
+      // Guard: the async callback can resolve after the cell has unmounted.
+      if (mounted.current) registerFrame?.(item.id, { x, y, w, h });
+    });
   return (
     <Pressable
       ref={registerFrame ? ref : undefined}
       onPress={() => (selectionMode ? onToggleSelect?.(item.id) : onPressPhoto(item, index))}
       onLongPress={disableLongPress ? undefined : () => onToggleSelect?.(item.id)}
-      onLayout={
-        registerFrame
-          ? () => ref.current?.measureInWindow((x, y, w, h) => registerFrame(item.id, { x, y, w, h }))
-          : undefined
-      }
+      onLayout={registerFrame ? measure : undefined}
       style={{ width: size, height: size, padding: GAP / 2 }}>
       <View style={{ flex: 1, borderRadius: 5, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
         <RemoteThumb photoId={item.id} displaySize={cell} style={{ width: '100%', height: '100%' }} />
@@ -139,39 +145,48 @@ function GroupedGrid({
   // the screen provides onSetSelect. A quick swipe still scrolls the list — the
   // pan only activates after a short hold, so scrolling is unaffected.
   const dragEnabled = !!onSetSelect;
+  // Frames are stored in CONTENT space (window-y at capture + scroll offset at
+  // capture), so a later scroll doesn't invalidate them: current window-y =
+  // contentY - currentScrollY. onLayout doesn't re-fire on scroll, so this is
+  // what keeps hit-testing correct after the list moves.
   const frames = useRef(new Map<string, CellFrame>());
+  const scrollY = useRef(0);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const dragMode = useRef(true);
+  const needsInit = useRef(false);
   const lastId = useRef<string | null>(null);
 
   const registerFrame = useCallback((id: string, frame: CellFrame | null) => {
-    if (frame) frames.current.set(id, frame);
+    if (frame) frames.current.set(id, { ...frame, y: frame.y + scrollY.current });
     else frames.current.delete(id);
   }, []);
 
   const hitTest = useCallback((x: number, y: number): string | null => {
     for (const [id, f] of frames.current) {
-      if (x >= f.x && x < f.x + f.w && y >= f.y && y < f.y + f.h) return id;
+      const top = f.y - scrollY.current; // content-y → current window-y
+      if (f.w > 0 && x >= f.x && x < f.x + f.w && y >= top && y < top + f.h) return id;
     }
     return null;
   }, []);
 
   const applyAt = useCallback(
-    (x: number, y: number, isStart: boolean) => {
+    (x: number, y: number) => {
       const id = hitTest(x, y);
       if (!id) return;
-      if (isStart) {
+      // Initialise on the FIRST cell actually hit — a drag can begin over a
+      // header/rail/gap where hitTest returns null, so we can't rely on onStart.
+      if (needsInit.current) {
+        needsInit.current = false;
         onEnterSelect?.();
         dragMode.current = !(selectedRef.current?.has(id) ?? false);
         lastId.current = null;
-        // A firmer tap confirms the press-and-hold started a selection.
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
       if (id !== lastId.current) {
         onSetSelect?.(id, dragMode.current);
         lastId.current = id;
-        if (!isStart) Haptics.selectionAsync().catch(() => {}); // light tick per new cell
+        Haptics.selectionAsync().catch(() => {}); // light tick per new cell
       }
     },
     [hitTest, onEnterSelect, onSetSelect],
@@ -182,10 +197,14 @@ function GroupedGrid({
       Gesture.Pan()
         .activateAfterLongPress(180)
         .runOnJS(true)
-        .onStart((e) => applyAt(e.absoluteX, e.absoluteY, true))
-        .onUpdate((e) => applyAt(e.absoluteX, e.absoluteY, false))
+        .onStart((e) => {
+          needsInit.current = true; // init happens on the first cell actually hit
+          applyAt(e.absoluteX, e.absoluteY);
+        })
+        .onUpdate((e) => applyAt(e.absoluteX, e.absoluteY))
         .onEnd(() => {
           lastId.current = null;
+          needsInit.current = false;
         }),
     [applyAt],
   );
@@ -242,6 +261,8 @@ function GroupedGrid({
       stickySectionHeadersEnabled
       onEndReached={onEndReached}
       onEndReachedThreshold={1.2}
+      onScroll={dragEnabled ? (e) => { scrollY.current = e.nativeEvent.contentOffset.y; } : undefined}
+      scrollEventThrottle={16}
       initialNumToRender={12}
       windowSize={9}
       removeClippedSubviews={false}
