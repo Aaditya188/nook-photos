@@ -26,6 +26,8 @@ interface AuthState {
     email?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  /** Sign out AND forget the server, returning to the server-config screen. */
+  changeServer: () => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -99,5 +101,10 @@ export const useAuth = create<AuthState>((set, get) => ({
       secureStorage.removeItem(STORAGE_KEYS.user),
     ]);
     set({ token: null, user: null, status: 'unauthed' });
+  },
+  async changeServer() {
+    await get().logout();
+    await secureStorage.removeItem(STORAGE_KEYS.serverUrl);
+    set({ serverUrl: null, status: 'unauthed' });
   },
 }));

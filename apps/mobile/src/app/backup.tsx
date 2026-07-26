@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,6 +22,7 @@ export default function BackupScreen() {
   const backup = useSettings((s) => s.backup);
   const setBackupPref = useSettings((s) => s.setBackupPref);
   const serverUrl = useAuth((s) => s.serverUrl);
+  const changeServer = useAuth((s) => s.changeServer);
 
   const progress =
     phase.state === 'uploading' && phase.total > 0 ? phase.done / phase.total : phase.state === 'done' ? 1 : 0;
@@ -112,12 +113,28 @@ export default function BackupScreen() {
         {/* Server config */}
         <View style={{ gap: t.spacing.md }}>
           <Text variant="label" color={t.colors.onSurfaceVariant}>SERVER CONFIGURATION</Text>
-          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md }}>
-            <MaterialCommunityIcons name="server-network" size={22} color={t.colors.onSurfaceVariant} />
-            <View style={{ flex: 1 }}>
-              <Text variant="body">Nook Server</Text>
-              <Text variant="caption" color={t.colors.onSurfaceVariant} numberOfLines={1}>{serverUrl}</Text>
+          <Card style={{ gap: t.spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md }}>
+              <MaterialCommunityIcons name="server-network" size={22} color={t.colors.onSurfaceVariant} />
+              <View style={{ flex: 1 }}>
+                <Text variant="body">Nook Server</Text>
+                <Text variant="caption" color={t.colors.onSurfaceVariant} numberOfLines={1}>{serverUrl}</Text>
+              </View>
             </View>
+            <Button
+              title="Change server"
+              variant="tonal"
+              onPress={() =>
+                Alert.alert(
+                  'Change server?',
+                  'You’ll be signed out of this server and returned to the connection screen.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Change server', style: 'destructive', onPress: () => changeServer() },
+                  ],
+                )
+              }
+            />
           </Card>
         </View>
       </ScrollView>
