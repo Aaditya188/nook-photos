@@ -4,8 +4,6 @@ import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLibrary, useDeletePhoto, type PhotoRecord } from '@nook/core';
 import { PhotoGrid } from '@/components/PhotoGrid';
-import { PeopleRail } from '@/components/PeopleRail';
-import { MemoriesRail } from '@/components/MemoriesRail';
 import { Text, BrandLoader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useSettings } from '@/store/settings';
@@ -18,8 +16,6 @@ export default function LibraryScreen() {
   const deletePhoto = useDeletePhoto();
   const setViewerList = useViewer((s) => s.setList);
   const gridColumns = useSettings((s) => s.prefs.gridColumns);
-  const setPref = useSettings((s) => s.setPref);
-  const cycleDensity = () => setPref('gridColumns', gridColumns >= 5 ? 2 : gridColumns + 1);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -76,38 +72,19 @@ export default function LibraryScreen() {
   }
 
   const header = () => (
-    <View style={{ paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm, gap: t.spacing.lg, paddingBottom: t.spacing.md }}>
+    <View style={{ paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm, paddingBottom: t.spacing.md }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text variant="headline">Nook Photos</Text>
-        <View style={{ flexDirection: 'row', gap: t.spacing.md, alignItems: 'center' }}>
-          {selectMode ? (
-            <Pressable onPress={() => { setSelectMode(false); setSelected(new Set()); }}>
-              <Text variant="titleSmall" color={t.colors.primaryContainer}>Done</Text>
-            </Pressable>
-          ) : (
-            <>
-              <Pressable onPress={cycleDensity} hitSlop={8} accessibilityLabel="Change grid size">
-                <MaterialIcons name="grid-view" size={24} color={t.colors.onSurface} />
-              </Pressable>
-              <Pressable onPress={() => router.push('/search')} hitSlop={8}>
-                <MaterialIcons name="search" size={26} color={t.colors.onSurface} />
-              </Pressable>
-              <Pressable onPress={() => setSelectMode(true)} hitSlop={8}>
-                <Text variant="titleSmall" color={t.colors.primaryContainer}>Select</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
+        <Text variant="headline">Library</Text>
+        {selectMode ? (
+          <Pressable onPress={() => { setSelectMode(false); setSelected(new Set()); }}>
+            <Text variant="titleSmall" color={t.colors.primaryContainer}>Done</Text>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => setSelectMode(true)} hitSlop={8}>
+            <Text variant="titleSmall" color={t.colors.primaryContainer}>Select</Text>
+          </Pressable>
+        )}
       </View>
-      {!selectMode ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.sm }}>
-          <QuickLink icon="luggage" label="Trips" onPress={() => router.push('/trips')} />
-          <QuickLink icon="map" label="Map" onPress={() => router.push('/map')} />
-          <QuickLink icon="people" label="People" onPress={() => router.push('/people')} />
-        </View>
-      ) : null}
-      {!selectMode ? <MemoriesRail /> : null}
-      {!selectMode ? <PeopleRail /> : null}
     </View>
   );
 
@@ -143,6 +120,32 @@ export default function LibraryScreen() {
         onSetSelect={setSelectState}
         onEnterSelect={() => setSelectMode(true)}
       />
+
+      {/* Floating Search button — bottom-right, just above the tab bar. */}
+      {!selectMode ? (
+        <Pressable
+          onPress={() => router.push('/search')}
+          accessibilityLabel="Search"
+          style={{
+            position: 'absolute',
+            right: 18,
+            bottom: 22,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: t.colors.primaryContainer,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 5,
+          }}>
+          <MaterialIcons name="search" size={28} color={t.colors.onPrimary} />
+        </Pressable>
+      ) : null}
+
       {selectMode && selected.size > 0 ? (
         <View
           style={{
@@ -173,26 +176,5 @@ export default function LibraryScreen() {
         </View>
       ) : null}
     </SafeAreaView>
-  );
-}
-
-/** A compact pill shortcut in the Library header (Trips, People & Places…). */
-function QuickLink({ icon, label, onPress }: { icon: keyof typeof MaterialIcons.glyphMap; label: string; onPress: () => void }) {
-  const t = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: t.radius.pill,
-        backgroundColor: t.colors.surfaceContainerHigh,
-      }}>
-      <MaterialIcons name={icon} size={17} color={t.colors.primaryContainer} />
-      <Text variant="label">{label}</Text>
-    </Pressable>
   );
 }

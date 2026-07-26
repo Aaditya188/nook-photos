@@ -22,6 +22,7 @@ import {
   type PhotoRecord,
 } from '@nook/core';
 import { RemoteThumb, FaceThumb } from '@/components/RemoteImage';
+import { MemoriesRail } from '@/components/MemoriesRail';
 import { Text, Card, Divider, BrandLoader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useTheme } from '@/theme';
@@ -115,6 +116,11 @@ export default function CollectionsScreen() {
             <MaterialIcons name="add" size={22} color={t.colors.primaryContainer} />
             <Text variant="titleSmall" color={t.colors.primaryContainer}>New</Text>
           </Pressable>
+        </View>
+
+        {/* Memories — "on this day" (moved here from the Library) */}
+        <View style={{ paddingHorizontal: t.spacing.lg }}>
+          <MemoriesRail />
         </View>
 
         {/* Featured */}
@@ -261,6 +267,8 @@ export default function CollectionsScreen() {
         <View style={{ gap: t.spacing.md, paddingHorizontal: t.spacing.lg }}>
           <SectionHead title="Utilities" flush />
           <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <UtilRow icon="map" label="Map" onPress={() => router.push('/map')} />
+            <Divider />
             <UtilRow icon="content-copy" label="Duplicates" onPress={() => router.push('/duplicates')} />
             <Divider />
             <UtilRow icon="visibility-off" label="Hidden" count={counts.hidden} locked onPress={() => router.push('/hidden')} />
