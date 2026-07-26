@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert, Modal } from 'react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -58,6 +60,28 @@ export default function PhotoViewer() {
       setChrome((c) => !c);
     }
   }
+
+  const closeViewer = useCallback(() => router.back(), []);
+  const showInfo = useCallback(() => {
+    setChrome(true);
+    setInfo(true);
+  }, []);
+
+  // Vertical swipe on the media: down → close (back to the grid), up → info.
+  // Disabled while zoomed (the image pans instead); yields to horizontal paging
+  // via failOffsetX so left/right swipes still change photo.
+  const verticalSwipe = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!zoomed)
+        .activeOffsetY([-24, 24])
+        .failOffsetX([-24, 24])
+        .onEnd((e) => {
+          if (e.translationY > 90 || e.velocityY > 800) runOnJS(closeViewer)();
+          else if (e.translationY < -90 || e.velocityY < -800) runOnJS(showInfo)();
+        }),
+    [zoomed, closeViewer, showInfo],
+  );
 
   // Slideshow: auto-advance every 4s (wrapping), chrome hidden. Any tap stops it.
   useEffect(() => {
@@ -174,6 +198,7 @@ export default function PhotoViewer() {
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
       <StatusBar hidden={!chrome} />
 
+      <GestureDetector gesture={verticalSwipe}>
       <FlatList
         ref={listRef}
         data={photos}
@@ -205,6 +230,7 @@ export default function PhotoViewer() {
           )
         }
       />
+      </GestureDetector>
 
       {chrome ? (
         <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
