@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert } from 'react-native';
+import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert, Modal } from 'react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -18,9 +18,9 @@ import {
   formatIso,
   type PhotoRecord,
 } from '@nook/core';
-import { RemoteOriginal } from '@/components/RemoteImage';
 import { LivePhoto } from '@/components/LivePhoto';
 import { VideoPlayer } from '@/components/VideoPlayer';
+import { ZoomableImage } from '@/components/ZoomableImage';
 import { Text } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
 import { useSettings } from '@/store/settings';
@@ -43,9 +43,21 @@ export default function PhotoViewer() {
   const [info, setInfo] = useState(false);
   const [slideshow, setSlideshow] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef<FlatList<PhotoRecord>>(null);
 
   const current = photos[index] ?? photos[startIndex];
+
+  // Single tap on the media: stop a running slideshow, else toggle the chrome.
+  function onTapMedia() {
+    if (slideshow) {
+      setSlideshow(false);
+      setChrome(true);
+    } else {
+      setChrome((c) => !c);
+    }
+  }
 
   // Slideshow: auto-advance every 4s (wrapping), chrome hidden. Any tap stops it.
   useEffect(() => {
@@ -80,6 +92,62 @@ export default function PhotoViewer() {
     setSharing(false);
   }
 
+  function trashCurrent() {
+    const doDelete = () => {
+      del.mutate(current.id);
+      router.back();
+    };
+    if (useSettings.getState().prefs.confirmDelete) {
+      Alert.alert('Delete this item?', 'It moves to Recently Deleted.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    } else {
+      doDelete();
+    }
+  }
+
+  function deletePermanent() {
+    Alert.alert(
+      'Delete permanently?',
+      'This removes the photo from your server for good. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            permaDelete.mutate(current.id);
+            router.back();
+          },
+        },
+      ],
+    );
+  }
+
+  // Everything the "⋯" menu offers, adapted to whether the photo is trashed.
+  type Action = { icon: keyof typeof MaterialIcons.glyphMap; label: string; onPress: () => void; danger?: boolean };
+  const actions: Action[] = current.deletedAt != null
+    ? [
+        { icon: 'info-outline', label: 'Info', onPress: () => setInfo((v) => !v) },
+        { icon: 'restore-from-trash', label: 'Restore', onPress: () => { restore.mutate(current.id); router.back(); } },
+        { icon: 'delete-forever', label: 'Delete permanently', onPress: deletePermanent, danger: true },
+      ]
+    : [
+        { icon: current.favorite ? 'favorite' : 'favorite-border', label: current.favorite ? 'Remove favorite' : 'Favorite', onPress: () => patch.mutate({ id: current.id, favorite: !current.favorite }) },
+        { icon: 'ios-share', label: 'Share', onPress: shareCurrent },
+        { icon: 'add-to-photos', label: 'Add to album', onPress: () => router.push({ pathname: '/add-to-album', params: { ids: current.id } }) },
+        ...(current.mediaType !== 'video'
+          ? [{ icon: 'tune' as const, label: 'Edit', onPress: () => router.push({ pathname: '/edit/[id]', params: { id: current.id } }) }]
+          : []),
+        ...(photos.length > 1
+          ? [{ icon: 'slideshow' as const, label: 'Slideshow', onPress: () => { setSlideshow(true); setChrome(false); setInfo(false); } }]
+          : []),
+        { icon: current.hidden ? 'visibility' : 'visibility-off', label: current.hidden ? 'Unhide' : 'Hide', onPress: () => patch.mutate({ id: current.id, hidden: !current.hidden }) },
+        { icon: 'info-outline', label: 'Info', onPress: () => setInfo((v) => !v) },
+        { icon: 'delete-outline', label: 'Delete', onPress: trashCurrent, danger: true },
+      ];
+
   const detail = useMemo(() => {
     if (!current) return [];
     return [
@@ -111,122 +179,66 @@ export default function PhotoViewer() {
         data={photos}
         horizontal
         pagingEnabled
+        scrollEnabled={!zoomed}
         initialScrollIndex={startIndex}
         getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         showsHorizontalScrollIndicator={false}
         keyExtractor={(p) => p.id}
         onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-        renderItem={({ item, index: i }) => (
-          <Pressable
-            onPress={() => {
-              if (slideshow) {
-                setSlideshow(false);
-                setChrome(true);
-              } else {
-                setChrome((c) => !c);
-              }
-            }}
-            style={{ width, height, alignItems: 'center', justifyContent: 'center' }}
-          >
-            {item.mediaType === 'video' ? (
+        renderItem={({ item, index: i }) =>
+          item.mediaType === 'video' ? (
+            <Pressable onPress={onTapMedia} style={{ width, height, alignItems: 'center', justifyContent: 'center' }}>
               <VideoPlayer photo={item} active={i === index} />
-            ) : item.hasMotion ? (
+            </Pressable>
+          ) : item.hasMotion ? (
+            <Pressable onPress={onTapMedia} style={{ width, height, alignItems: 'center', justifyContent: 'center' }}>
               <LivePhoto photo={item} width={width} height={height} />
-            ) : (
-              <RemoteOriginal photoId={item.id} style={{ width, height }} contentFit="contain" />
-            )}
-          </Pressable>
-        )}
+            </Pressable>
+          ) : (
+            <ZoomableImage
+              photoId={item.id}
+              width={width}
+              height={height}
+              onTap={onTapMedia}
+              onZoomChange={setZoomed}
+            />
+          )
+        }
       />
 
       {chrome ? (
         <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: t.spacing.md }}>
             <IconBtn name="arrow-back" onPress={() => router.back()} />
-            <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
-              {current.deletedAt != null ? (
-                <>
-                  {/* Trashed item: restore or delete forever — never re-trash. */}
-                  <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
-                  <IconBtn
-                    name="restore-from-trash"
-                    onPress={() => {
-                      restore.mutate(current.id);
-                      router.back();
-                    }}
-                  />
-                  <IconBtn
-                    name="delete-forever"
-                    color="#ff6b8a"
-                    onPress={() =>
-                      Alert.alert(
-                        'Delete permanently?',
-                        'This removes the photo from your server for good. This cannot be undone.',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Delete',
-                            style: 'destructive',
-                            onPress: () => {
-                              permaDelete.mutate(current.id);
-                              router.back();
-                            },
-                          },
-                        ],
-                      )
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <IconBtn
-                    name={current.favorite ? 'favorite' : 'favorite-border'}
-                    color={current.favorite ? '#ff6b8a' : '#fff'}
-                    onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
-                  />
-                  <IconBtn name="ios-share" onPress={shareCurrent} />
-                  <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />
-                  {current.mediaType !== 'video' ? (
-                    <IconBtn name="tune" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: current.id } })} />
-                  ) : null}
-                  {photos.length > 1 ? (
-                    <IconBtn
-                      name="slideshow"
-                      onPress={() => {
-                        setSlideshow(true);
-                        setChrome(false);
-                        setInfo(false);
-                      }}
-                    />
-                  ) : null}
-                  <IconBtn
-                    name={current.hidden ? 'visibility' : 'visibility-off'}
-                    onPress={() => patch.mutate({ id: current.id, hidden: !current.hidden })}
-                  />
-                  <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
-                  <IconBtn
-                    name="delete-outline"
-                    onPress={() => {
-                      const doDelete = () => {
-                        del.mutate(current.id);
-                        router.back();
-                      };
-                      if (useSettings.getState().prefs.confirmDelete) {
-                        Alert.alert('Delete this item?', 'It moves to Recently Deleted.', [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: doDelete },
-                        ]);
-                      } else {
-                        doDelete();
-                      }
-                    }}
-                  />
-                </>
-              )}
-            </View>
+            <IconBtn name="more-horiz" onPress={() => setMenuOpen(true)} />
           </View>
         </SafeAreaView>
       ) : null}
+
+      {/* All actions live in this "⋯" sheet. */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setMenuOpen(false)}>
+          <SafeAreaView edges={['bottom']} style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{ margin: t.spacing.md, borderRadius: t.radius.lg, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHighest }}
+            >
+              {actions.map((a, i) => (
+                <View key={a.label}>
+                  <Pressable
+                    onPress={() => { setMenuOpen(false); a.onPress(); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, paddingVertical: 16, paddingHorizontal: t.spacing.lg }}
+                  >
+                    <MaterialIcons name={a.icon} size={22} color={a.danger ? t.colors.error : t.colors.onSurface} />
+                    <Text variant="body" color={a.danger ? t.colors.error : t.colors.onSurface}>{a.label}</Text>
+                  </Pressable>
+                  {i < actions.length - 1 ? <View style={{ height: 0.5, backgroundColor: t.colors.outlineVariant }} /> : null}
+                </View>
+              ))}
+            </Pressable>
+          </SafeAreaView>
+        </Pressable>
+      </Modal>
 
       {chrome && info ? (
         <SafeAreaView edges={['bottom']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
