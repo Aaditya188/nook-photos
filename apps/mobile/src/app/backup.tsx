@@ -10,6 +10,7 @@ import { useSettings } from '@/store/settings';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme';
 import { scanFreeable, freeUpSpace, type FreeableScan } from '@/features/sync/freeup';
+import type { SyncFailure } from '@/features/sync/engine';
 
 export default function BackupScreen() {
   const t = useTheme();
@@ -82,6 +83,10 @@ export default function BackupScreen() {
               }
             />
           )}
+
+          {(phase.state === 'uploading' || phase.state === 'done') && phase.failures.length > 0 ? (
+            <FailureReport failures={phase.failures} />
+          ) : null}
         </Card>
 
         {/* Preferences */}
@@ -117,6 +122,55 @@ export default function BackupScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** Groups failed items by reason with an expandable list of filenames. */
+function FailureReport({ failures }: { failures: SyncFailure[] }) {
+  const t = useTheme();
+  const [open, setOpen] = useState(false);
+
+  const byReason = new Map<string, SyncFailure[]>();
+  for (const f of failures) {
+    const list = byReason.get(f.reason) ?? [];
+    list.push(f);
+    byReason.set(f.reason, list);
+  }
+  const groups = [...byReason.entries()].sort((a, b) => b[1].length - a[1].length);
+
+  return (
+    <View style={{ gap: t.spacing.sm, borderTopWidth: 0.5, borderTopColor: t.colors.outlineVariant, paddingTop: t.spacing.md }}>
+      <Pressable onPress={() => setOpen((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm }}>
+        <MaterialIcons name="error-outline" size={18} color={t.colors.error} />
+        <Text variant="body" color={t.colors.error} style={{ flex: 1 }}>
+          {failures.length} couldn’t be backed up
+        </Text>
+        <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={22} color={t.colors.onSurfaceVariant} />
+      </Pressable>
+      {open ? (
+        <View style={{ gap: t.spacing.md, paddingTop: 4 }}>
+          {groups.map(([reason, items]) => (
+            <View key={reason} style={{ gap: 3 }}>
+              <Text variant="caption" color={t.colors.onSurface} style={{ fontWeight: '700' }}>
+                {reason} · {items.length}
+              </Text>
+              {items.slice(0, 8).map((f) => (
+                <Text key={f.id} variant="caption" color={t.colors.onSurfaceVariant} numberOfLines={1}>
+                  {f.filename}
+                </Text>
+              ))}
+              {items.length > 8 ? (
+                <Text variant="caption" color={t.colors.onSurfaceVariant}>+ {items.length - 8} more</Text>
+              ) : null}
+            </View>
+          ))}
+          <Text variant="caption" color={t.colors.onSurfaceVariant}>
+            Network drops retry automatically next backup. iCloud items back up once downloaded to
+            this device. Videos over 480 MB aren’t supported yet.
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 

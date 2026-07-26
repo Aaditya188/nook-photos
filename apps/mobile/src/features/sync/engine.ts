@@ -17,14 +17,35 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import type { NookClient, PhotoUpload } from '@nook/core';
 import { backedUpByLocalId } from './freeup';
 
+/** A single asset that couldn't be backed up, with a human-readable reason. */
+export interface SyncFailure {
+  id: string;
+  filename: string;
+  reason: string;
+}
+
 export type BackupPhase =
   | { state: 'idle' }
   | { state: 'permission' }
   | { state: 'permission-denied' }
   | { state: 'scanning' }
-  | { state: 'uploading'; done: number; total: number; uploaded: number; failed: number }
-  | { state: 'done'; uploaded: number; failed: number }
+  | { state: 'uploading'; done: number; total: number; uploaded: number; failed: number; failures: SyncFailure[] }
+  | { state: 'done'; uploaded: number; failed: number; failures: SyncFailure[] }
   | { state: 'error'; message: string };
+
+/** Map a raw upload error to a short reason a person can act on. */
+export function classifyBackupError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e ?? '');
+  if (/HTTP\s*413|too large|exceeds/i.test(msg)) return 'File is larger than the server allows';
+  if (/HTTP\s*401|HTTP\s*403|unauthor/i.test(msg)) return 'Session expired — sign in again';
+  if (/HTTP\s*5\d\d/.test(msg)) return 'Server error while uploading';
+  if (/HTTP\s*4\d\d/.test(msg)) return 'Server rejected this file';
+  if (/network|timed?\s*out|timeout|fetch|connection|resolve host|ECONN|socket/i.test(msg))
+    return 'Network dropped — will retry next backup';
+  if (/icloud|download|not.*available|could not.*load|no such file|does not exist/i.test(msg))
+    return 'Original not on device (still in iCloud)';
+  return (msg || 'Unknown error').slice(0, 140);
+}
 
 export interface BackupPrefs {
   wifiOnly: boolean;
@@ -47,6 +68,28 @@ const CONTENT_TYPES: Record<string, string> = {
 function contentType(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return CONTENT_TYPES[ext] ?? 'application/octet-stream';
+}
+
+/**
+ * PUT a file and throw on a non-2xx status. expo-file-system's uploadAsync
+ * RESOLVES on HTTP errors (only rejecting on transport failure), so without this
+ * check a rejected upload would look like a success and the item would appear
+ * backed up when the server never stored it.
+ */
+async function putBinary(
+  client: NookClient,
+  path: string,
+  uri: string,
+  type: string,
+): Promise<void> {
+  const res = await FileSystem.uploadAsync(client.url(path), uri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { ...client.authHeaders(), 'Content-Type': type },
+  });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`HTTP ${res.status}${res.body ? ': ' + String(res.body).slice(0, 120) : ''}`);
+  }
 }
 
 async function withRetries<T>(attempts: number, op: () => Promise<T>): Promise<T> {
@@ -108,21 +151,28 @@ export async function runBackup(client: NookClient, prefs: BackupPrefs, handle: 
   let uploaded = 0;
   let failed = 0;
   const uploadedIds: string[] = [];
-  handle.onPhase({ state: 'uploading', done: 0, total, uploaded, failed });
+  const failures: SyncFailure[] = [];
+  handle.onPhase({ state: 'uploading', done: 0, total, uploaded, failed, failures });
 
   for (let i = 0; i < remaining.length; i++) {
     if (handle.isCancelled()) {
       handle.onPhase({ state: 'idle' });
       return;
     }
+    const asset = remaining[i]!;
     try {
-      await backupAsset(client, remaining[i]!, prefs);
+      await backupAsset(client, asset, prefs);
       uploaded++;
-      uploadedIds.push(remaining[i]!.id);
-    } catch {
+      uploadedIds.push(asset.id);
+    } catch (e) {
       failed++;
+      failures.push({
+        id: asset.id,
+        filename: asset.filename || `IMG_${asset.id.slice(0, 8)}`,
+        reason: classifyBackupError(e),
+      });
     }
-    handle.onPhase({ state: 'uploading', done: i + 1, total, uploaded, failed });
+    handle.onPhase({ state: 'uploading', done: i + 1, total, uploaded, failed, failures: [...failures] });
   }
 
   // "Delete from phone after backup": one batch at the end (the OS shows its own
@@ -142,7 +192,7 @@ export async function runBackup(client: NookClient, prefs: BackupPrefs, handle: 
     }
   }
 
-  handle.onPhase({ state: 'done', uploaded, failed });
+  handle.onPhase({ state: 'done', uploaded, failed, failures });
 }
 
 async function backupAsset(client: NookClient, asset: MediaLibrary.Asset, prefs: BackupPrefs): Promise<void> {
@@ -211,26 +261,24 @@ async function backupAsset(client: NookClient, asset: MediaLibrary.Asset, prefs:
   }
 
   // Original bytes.
-  if (localUri) {
-    if (isVideo) {
-      const stat = await FileSystem.getInfoAsync(localUri);
-      if (!stat.exists || ((stat as { size?: number }).size ?? 0) > MAX_VIDEO_BYTES) return; // oversize → leave pending
+  if (!localUri) throw new Error('Original not on device (still in iCloud)');
+  if (isVideo) {
+    const stat = await FileSystem.getInfoAsync(localUri);
+    if (!stat.exists) throw new Error('Original not on device (still in iCloud)');
+    if (((stat as { size?: number }).size ?? 0) > MAX_VIDEO_BYTES) {
+      throw new Error('Video too large (over 480 MB)');
     }
-    await FileSystem.uploadAsync(client.url(`/api/photos/${record.id}/original`), localUri, {
-      httpMethod: 'PUT',
-      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      headers: { ...client.authHeaders(), 'Content-Type': contentType(filename) },
-    });
+  }
+  await putBinary(client, `/api/photos/${record.id}/original`, localUri, contentType(filename));
 
-    // Live Photo motion clip. AssetInfo.pairedVideoAsset is iOS-only and present only
-    // when mediaSubtypes includes 'livePhoto'. Uploaded AFTER the still, and failure is
-    // non-fatal: a Live Photo without its clip is still a perfectly good photo, and the
-    // server reports hasMotion=false so the viewers just don't offer playback.
-    if (isLive) {
-      await uploadMotion(client, record.id, info).catch(() => {
-        /* non-fatal — the still is already safely backed up */
-      });
-    }
+  // Live Photo motion clip. AssetInfo.pairedVideoAsset is iOS-only and present only
+  // when mediaSubtypes includes 'livePhoto'. Uploaded AFTER the still, and failure is
+  // non-fatal: a Live Photo without its clip is still a perfectly good photo, and the
+  // server reports hasMotion=false so the viewers just don't offer playback.
+  if (isLive) {
+    await uploadMotion(client, record.id, info).catch(() => {
+      /* non-fatal — the still is already safely backed up */
+    });
   }
 }
 
@@ -252,9 +300,5 @@ async function uploadMotion(
   const stat = await FileSystem.getInfoAsync(uri);
   const size = (stat as { size?: number }).size ?? 0;
   if (!stat.exists || size === 0 || size > MAX_VIDEO_BYTES) return;
-  await FileSystem.uploadAsync(client.url(`/api/photos/${photoId}/motion`), uri, {
-    httpMethod: 'PUT',
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: { ...client.authHeaders(), 'Content-Type': 'video/quicktime' },
-  });
+  await putBinary(client, `/api/photos/${photoId}/motion`, uri, 'video/quicktime');
 }
