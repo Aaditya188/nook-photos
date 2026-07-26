@@ -69,12 +69,19 @@ export default function CollectionsScreen() {
   const placesList = useMemo(() => (places.data ?? []).filter((p) => p.count > 0).slice(0, 15), [places.data]);
 
   function newAlbum() {
-    Alert.prompt?.('New Album', 'Name your album', async (name?: string) => {
-      if (name?.trim()) {
-        const a = await createAlbum.mutateAsync(name.trim());
-        router.push({ pathname: '/album/[id]', params: { id: a.id } });
-      }
-    });
+    const create = async (name: string) => {
+      const a = await createAlbum.mutateAsync(name);
+      router.push({ pathname: '/album/[id]', params: { id: a.id } });
+    };
+    // Alert.prompt is iOS-only; on Android create with a default name (rename in
+    // the album) so the button isn't a silent no-op.
+    if (typeof Alert.prompt === 'function') {
+      Alert.prompt('New Album', 'Name your album', (name?: string) => {
+        if (name?.trim()) create(name.trim());
+      });
+    } else {
+      create('New Album');
+    }
   }
 
   function openFeatured(photo: PhotoRecord) {

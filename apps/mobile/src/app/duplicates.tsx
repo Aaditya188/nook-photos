@@ -39,6 +39,7 @@ export default function DuplicatesScreen() {
     const ids = candidates.flatMap((g) => g.photos.map((p) => p.id));
     if (ids.length === 0) {
       setHashes(new Map());
+      setHashing(false); // clear any in-flight loader when candidates drop to zero
       return;
     }
     let alive = true;

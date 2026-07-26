@@ -95,13 +95,18 @@ function pickSource(id: string): string | null {
 }
 
 const dhashCache = new Map<string, string>();
+const DHASH_CACHE_MAX = 50_000;
 
 /**
- * Perceptual hash (dHash, 64-bit hex) of a photo, matching the web app's canvas
- * algorithm so the two are interchangeable: 9x8 greyscale, each pixel compared to
- * its right neighbour (left < right => 1), row-major, 4 bits per hex char. Lets
- * clients that can't run a canvas (React Native) verify duplicate candidates.
- * Cached per id — a photo's pixels don't change once uploaded.
+ * Perceptual hash (dHash, 64-bit hex) of a photo: 9x8 greyscale, each pixel
+ * compared to its right neighbour (left < right => 1), row-major, 4 bits per hex
+ * char. This is the SAME algorithm the web app runs in a canvas; the resampling
+ * and luma weighting differ slightly between sharp and canvas, so the two aren't
+ * bit-identical, but each platform hashes its whole candidate set with one method
+ * so within-platform comparisons are consistent. Lets clients without a canvas
+ * (React Native) verify duplicate candidates. Cached per id (pixels are stable).
+ * The sharp decode runs through the shared job queue so a burst of ids can't
+ * oversubscribe the CPU.
  */
 export async function getDHash(id: string): Promise<string | null> {
   const cached = dhashCache.get(id);
@@ -109,21 +114,25 @@ export async function getDHash(id: string): Promise<string | null> {
   const src = pickSource(id);
   if (!src) return null;
   try {
-    const buf = await sharp(src, { failOn: 'none' })
-      .rotate()
-      .greyscale()
-      .resize(9, 8, { fit: 'fill' })
-      .raw()
-      .toBuffer();
-    let bits = '';
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const i = row * 9 + col;
-        bits += buf[i]! < buf[i + 1]! ? '1' : '0';
+    const hex = await schedule(async () => {
+      const buf = await sharp(src, { failOn: 'none' })
+        .rotate()
+        .greyscale()
+        .resize(9, 8, { fit: 'fill' })
+        .raw()
+        .toBuffer();
+      let bits = '';
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const i = row * 9 + col;
+          bits += buf[i]! < buf[i + 1]! ? '1' : '0';
+        }
       }
-    }
-    let hex = '';
-    for (let k = 0; k < 64; k += 4) hex += parseInt(bits.slice(k, k + 4), 2).toString(16);
+      let out = '';
+      for (let k = 0; k < 64; k += 4) out += parseInt(bits.slice(k, k + 4), 2).toString(16);
+      return out;
+    });
+    if (dhashCache.size >= DHASH_CACHE_MAX) dhashCache.clear(); // simple bound
     dhashCache.set(id, hex);
     return hex;
   } catch {

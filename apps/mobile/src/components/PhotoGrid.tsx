@@ -160,6 +160,14 @@ function GroupedGrid({
   const dragMode = useRef(true);
   const needsInit = useRef(false);
   const lastId = useRef<string | null>(null);
+  // Keep the callbacks in refs so the pan gesture below can be built ONCE. The
+  // screen passes fresh onSetSelect/onEnterSelect identities every render (and it
+  // re-renders on every cell selected mid-drag), which would otherwise rebuild
+  // the gesture object and interrupt the in-progress drag.
+  const onSetSelectRef = useRef(onSetSelect);
+  onSetSelectRef.current = onSetSelect;
+  const onEnterSelectRef = useRef(onEnterSelect);
+  onEnterSelectRef.current = onEnterSelect;
 
   const registerFrame = useCallback((id: string, frame: CellFrame | null) => {
     if (frame) frames.current.set(id, { ...frame, y: frame.y + scrollY.current });
@@ -182,18 +190,18 @@ function GroupedGrid({
       // header/rail/gap where hitTest returns null, so we can't rely on onStart.
       if (needsInit.current) {
         needsInit.current = false;
-        onEnterSelect?.();
+        onEnterSelectRef.current?.();
         dragMode.current = !(selectedRef.current?.has(id) ?? false);
         lastId.current = null;
         if (hapticsRef.current) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
       if (id !== lastId.current) {
-        onSetSelect?.(id, dragMode.current);
+        onSetSelectRef.current?.(id, dragMode.current);
         lastId.current = id;
         if (hapticsRef.current) Haptics.selectionAsync().catch(() => {}); // light tick per new cell
       }
     },
-    [hitTest, onEnterSelect, onSetSelect],
+    [hitTest],
   );
 
   const pan = useMemo(

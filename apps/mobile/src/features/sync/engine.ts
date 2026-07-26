@@ -36,6 +36,7 @@ export type BackupPhase =
 /** Map a raw upload error to a short reason a person can act on. */
 export function classifyBackupError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e ?? '');
+  if (/video too large|over 480/i.test(msg)) return 'Video is over the 480 MB limit';
   if (/HTTP\s*413|too large|exceeds/i.test(msg)) return 'File is larger than the server allows';
   if (/HTTP\s*401|HTTP\s*403|unauthor/i.test(msg)) return 'Session expired — sign in again';
   if (/HTTP\s*5\d\d/.test(msg)) return 'Server error while uploading';

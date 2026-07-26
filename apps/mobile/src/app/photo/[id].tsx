@@ -70,6 +70,9 @@ export default function PhotoViewer() {
       const dl = await FileSystem.downloadAsync(client.originalUrl(current.id), dest, {
         headers: client.authHeaders(),
       });
+      // downloadAsync resolves even on 401/404, writing the error body to disk —
+      // don't share a corrupt file.
+      if (dl.status < 200 || dl.status >= 300) throw new Error(`HTTP ${dl.status}`);
       await Sharing.shareAsync(dl.uri);
     } catch {
       Alert.alert('Could not share', 'The original could not be downloaded to share.');
