@@ -166,6 +166,25 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reflect the current section in the tab title.
+  useEffect(() => {
+    const p = location.pathname;
+    const map: [string, string][] = [
+      ['/settings', 'Settings'], ['/profile', 'Settings'],
+      ['/people', 'People'], ['/person', 'People'],
+      ['/places', 'Places'], ['/place', 'Places'],
+      ['/albums', 'Albums'], ['/album', 'Albums'],
+      ['/trips', 'Trips'], ['/trip', 'Trips'],
+      ['/map', 'Map'], ['/backup', 'Backup Health'],
+      ['/duplicates', 'Duplicates'], ['/hidden', 'Hidden'],
+      ['/deleted', 'Recently Deleted'], ['/category', 'Library'],
+      ['/welcome', 'Welcome'],
+    ];
+    const hit = map.find(([pre]) => p.startsWith(pre));
+    const section = p === '/' ? '' : hit ? hit[1] : '';
+    document.title = section ? section + ' · Nook Photos' : 'Nook Photos';
+  }, [location.pathname]);
+
   // Leaving a view drops selection + search.
   const { exitSelect, searchResults, setSearchState } = useView();
   const prevPath = useRef(location.pathname);

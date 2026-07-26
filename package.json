@@ -14,5 +14,11 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "comments": {
+    "overrides": "konva is pinned so react-konva and react-filerobot-image-editor share ONE copy. Filerobot pins konva 9.3.18 as a direct dep while konva's latest is 10.x; without this, npm hoists 10.x for react-konva and nests 9.3.18 under Filerobot, shipping two Konva runtimes (bundle bloat + reconciler/instance mismatch). react-konva@19.2.5 peers konva ^9 || ^10, so 9.3.18 satisfies both."
+  },
+  "overrides": {
+    "konva": "9.3.18"
   }
 }

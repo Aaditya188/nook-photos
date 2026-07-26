@@ -31,6 +31,10 @@ export function TopBar({
 }) {
   let statusText: string;
   let pillCls = 'status-pill';
+  // Only spell out the status when it's actionable (backing up / offline). When
+  // everything is synced the pill collapses to a single dot so the right corner
+  // isn't eaten by an "All backed up · N items" label — full text stays on hover.
+  let compact = false;
   if (!online) {
     pillCls += ' offline';
     statusText = 'Server unreachable';
@@ -38,11 +42,13 @@ export function TopBar({
     pillCls += ' pending';
     statusText = 'Backing up · ' + pending + ' remaining';
   } else {
+    compact = true;
     statusText =
       items === 0
         ? 'Connected to your server'
         : 'All backed up · ' + items.toLocaleString('en-US') + (items === 1 ? ' item' : ' items');
   }
+  if (compact) pillCls += ' compact';
 
   const st = status?.storage;
 
@@ -70,10 +76,10 @@ export function TopBar({
         <div className="wordmark">nook</div>
       </div>
 
-      <div className={pillCls} title={statusText}>
+      <div className={pillCls} title={statusText} aria-label={statusText}>
         <span className="dot" />
         {fetching ? <PillLoader /> : null}
-        <span className="status-text">{statusText}</span>
+        {compact ? null : <span className="status-text">{statusText}</span>}
       </div>
 
       <div className="topbar-right">

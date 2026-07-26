@@ -154,6 +154,11 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
+.status-pill.compact {
+  padding: 9px;
+  border-radius: 50%;
+}
+
 .status-pill .dot {
   width: 8px;
   height: 8px;

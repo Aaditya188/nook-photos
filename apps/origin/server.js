@@ -344,23 +344,26 @@ function sessionIdOf(token) {
  * device type from the User-Agent, and a per-(user,type) sequence number so
  * repeat devices don't collide.
  */
+/** The device family from a User-Agent string, or null if it's unrecognizable. */
+function deviceBaseFromUa(ua) {
+  ua = String(ua || '');
+  if (!ua) return null;
+  if (/ipad/i.test(ua)) return 'iPad';
+  if (/iphone|cfnetwork|darwin/i.test(ua)) return 'iPhone';
+  if (/android|okhttp|dalvik/i.test(ua)) return 'Android';
+  if (/windows/i.test(ua)) return 'Windows PC';
+  if (/mac os x|macintosh/i.test(ua)) return 'MacBook';
+  if (/linux/i.test(ua)) return 'Linux PC';
+  return 'Device';
+}
+
+function firstNameOf(user) {
+  return String((user && (user.displayName || user.username)) || 'Nook').trim().split(/\s+/)[0];
+}
+
 function deviceLabelFor(user, req) {
-  const ua = String(req.headers['user-agent'] || '');
-  const base = /ipad/i.test(ua)
-    ? 'iPad'
-    : /iphone|cfnetwork|darwin/i.test(ua)
-      ? 'iPhone'
-      : /android|okhttp|dalvik/i.test(ua)
-        ? 'Android'
-        : /windows/i.test(ua)
-          ? 'Windows PC'
-          : /mac os x|macintosh/i.test(ua)
-            ? 'MacBook'
-            : /linux/i.test(ua)
-              ? 'Linux PC'
-              : 'Device';
-  const first = String((user && (user.displayName || user.username)) || 'Nook').trim().split(/\s+/)[0];
-  const prefix = first + ' ' + base;
+  const base = deviceBaseFromUa(req && req.headers && req.headers['user-agent']) || 'Device';
+  const prefix = firstNameOf(user) + ' ' + base;
   let n = 0;
   for (const t in db.tokens) {
     const rec = db.tokens[t];
@@ -1001,15 +1004,38 @@ async function handleLogin(req, res) {
 // Sessions (signed-in devices) + two-factor management
 // ---------------------------------------------------------------------------
 
-function handleListSessions(res, user, currentToken) {
+function handleListSessions(req, res, user, currentToken) {
+  // Heal the session making this request: capture its User-Agent and give it a
+  // friendly label if it was created before labelling existed (the "Unknown
+  // device" rows). This means the device you're looking at always names itself
+  // correctly, without needing to sign out and back in.
+  const cur = db.tokens[currentToken];
+  if (cur) {
+    let changed = false;
+    const ua = String((req && req.headers && req.headers['user-agent']) || '');
+    if (ua && !cur.ua) { cur.ua = ua.slice(0, 200); changed = true; }
+    if (!cur.label || cur.label === 'Unknown device') {
+      cur.label = deviceLabelFor(user, req);
+      changed = true;
+    }
+    if (changed) persist();
+  }
+
   const sessions = [];
   for (const tok of Object.keys(db.tokens)) {
     const rec = db.tokens[tok];
     if (rec.userId !== user.id) continue;
+    // Prefer the stored label; otherwise derive one from the stored UA so even
+    // old sessions read as e.g. "Aaditya Windows PC" instead of "Unknown device".
+    let label = rec.label;
+    if (!label) {
+      const base = deviceBaseFromUa(rec.ua);
+      label = base ? firstNameOf(user) + ' ' + base : 'Unknown device';
+    }
     sessions.push({
       id: sessionIdOf(tok),
       createdAt: rec.createdAt,
-      label: rec.label || 'Unknown device',
+      label: label,
       current: tok === currentToken,
     });
   }
@@ -1785,7 +1811,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/account/avatar' && req.method === 'DELETE') return handleDeleteAvatar(res, user);
   const avatarMatch = /^\/api\/users\/([A-Za-z0-9_-]+)\/avatar$/.exec(pathname);
   if (avatarMatch && req.method === 'GET') return handleGetAvatar(req, res, avatarMatch[1]);
-  if (pathname === '/api/sessions' && req.method === 'GET') return handleListSessions(res, user, token);
+  if (pathname === '/api/sessions' && req.method === 'GET') return handleListSessions(req, res, user, token);
   const sessMatch = /^\/api\/sessions\/([a-f0-9]{12})$/.exec(pathname);
   if (pathname === '/api/sessions' && req.method === 'DELETE') return handleRevokeOtherSessions(res, user, token);
   if (sessMatch && req.method === 'DELETE') return handleRevokeSession(res, user, sessMatch[1]);
