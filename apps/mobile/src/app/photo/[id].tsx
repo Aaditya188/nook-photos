@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
-import { View, Pressable, FlatList, useWindowDimensions, StatusBar } from 'react-native';
+import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert } from 'react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import {
   usePatchPhoto,
   useDeletePhoto,
+  useRestorePhoto,
+  usePermanentDelete,
   humanBytes,
   formatAperture,
   formatExposure,
@@ -26,6 +28,8 @@ export default function PhotoViewer() {
   const photos = useViewer((s) => s.photos);
   const patch = usePatchPhoto();
   const del = useDeletePhoto();
+  const restore = useRestorePhoto();
+  const permaDelete = usePermanentDelete();
 
   const startIndex = Math.max(0, photos.findIndex((p) => p.id === id));
   const [index, setIndex] = useState(startIndex);
@@ -87,23 +91,64 @@ export default function PhotoViewer() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: t.spacing.md }}>
             <IconBtn name="arrow-back" onPress={() => router.back()} />
             <View style={{ flexDirection: 'row', gap: t.spacing.sm }}>
-              <IconBtn
-                name={current.favorite ? 'favorite' : 'favorite-border'}
-                color={current.favorite ? '#ff6b8a' : '#fff'}
-                onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
-              />
-              <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />
-              {current.mediaType !== 'video' ? (
-                <IconBtn name="tune" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: current.id } })} />
-              ) : null}
-              <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
-              <IconBtn
-                name="delete-outline"
-                onPress={() => {
-                  del.mutate(current.id);
-                  router.back();
-                }}
-              />
+              {current.deletedAt != null ? (
+                <>
+                  {/* Trashed item: restore or delete forever — never re-trash. */}
+                  <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
+                  <IconBtn
+                    name="restore-from-trash"
+                    onPress={() => {
+                      restore.mutate(current.id);
+                      router.back();
+                    }}
+                  />
+                  <IconBtn
+                    name="delete-forever"
+                    color="#ff6b8a"
+                    onPress={() =>
+                      Alert.alert(
+                        'Delete permanently?',
+                        'This removes the photo from your server for good. This cannot be undone.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: () => {
+                              permaDelete.mutate(current.id);
+                              router.back();
+                            },
+                          },
+                        ],
+                      )
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <IconBtn
+                    name={current.favorite ? 'favorite' : 'favorite-border'}
+                    color={current.favorite ? '#ff6b8a' : '#fff'}
+                    onPress={() => patch.mutate({ id: current.id, favorite: !current.favorite })}
+                  />
+                  <IconBtn name="add-to-photos" onPress={() => router.push({ pathname: '/add-to-album', params: { ids: current.id } })} />
+                  {current.mediaType !== 'video' ? (
+                    <IconBtn name="tune" onPress={() => router.push({ pathname: '/edit/[id]', params: { id: current.id } })} />
+                  ) : null}
+                  <IconBtn
+                    name={current.hidden ? 'visibility' : 'visibility-off'}
+                    onPress={() => patch.mutate({ id: current.id, hidden: !current.hidden })}
+                  />
+                  <IconBtn name="info-outline" onPress={() => setInfo((v) => !v)} />
+                  <IconBtn
+                    name="delete-outline"
+                    onPress={() => {
+                      del.mutate(current.id);
+                      router.back();
+                    }}
+                  />
+                </>
+              )}
             </View>
           </View>
         </SafeAreaView>

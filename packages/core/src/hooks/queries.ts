@@ -208,3 +208,12 @@ export function useRestorePhoto() {
     },
   });
 }
+
+export function usePermanentDelete() {
+  const client = useNookClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => client.permanentDeletePhoto(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.deleted }),
+  });
+}
