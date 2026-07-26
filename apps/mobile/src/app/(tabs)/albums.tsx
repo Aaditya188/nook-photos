@@ -13,6 +13,7 @@ import {
   useAlbums,
   useLibrary,
   usePeople,
+  usePlaces,
   useCreateAlbum,
   useDeletedPhotos,
   detectTrips,
@@ -30,6 +31,7 @@ export default function CollectionsScreen() {
   const albums = useAlbums();
   const library = useLibrary();
   const people = usePeople();
+  const places = usePlaces();
   const deleted = useDeletedPhotos();
   const createAlbum = useCreateAlbum();
   const setViewerList = useViewer((s) => s.setList);
@@ -64,6 +66,7 @@ export default function CollectionsScreen() {
 
   const trips = useMemo(() => detectTrips(library.data ?? []), [library.data]);
   const peopleList = useMemo(() => (people.data ?? []).filter((p) => p.count > 0).slice(0, 15), [people.data]);
+  const placesList = useMemo(() => (places.data ?? []).filter((p) => p.count > 0).slice(0, 15), [places.data]);
 
   function newAlbum() {
     Alert.prompt?.('New Album', 'Name your album', async (name?: string) => {
@@ -128,28 +131,60 @@ export default function CollectionsScreen() {
           </View>
         ) : null}
 
-        {/* People */}
-        {peopleList.length > 0 ? (
+        {/* People & Places — one section, two groups */}
+        {peopleList.length > 0 || placesList.length > 0 ? (
           <View style={{ gap: t.spacing.md }}>
-            <SectionHead title="People" onPress={() => router.push('/people')} />
-            <FlatList
-              horizontal
-              data={peopleList}
-              keyExtractor={(p) => p.id}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => router.push({ pathname: '/people/[id]', params: { id: item.id, name: item.name ?? 'Person' } })}
-                  style={{ alignItems: 'center', width: 84 }}
-                >
-                  <FaceThumb photoId={item.coverPhotoId} face={item.coverFace} size={80} bg={t.colors.surfaceContainerHigh} />
-                  <Text variant="caption" numberOfLines={1} style={{ marginTop: 5, maxWidth: 84, textAlign: 'center' }}>
-                    {item.name ?? 'Add Name'}
-                  </Text>
-                </Pressable>
-              )}
-            />
+            <SectionHead title="People & Places" onPress={() => router.push('/people')} />
+
+            {peopleList.length > 0 ? (
+              <View style={{ gap: t.spacing.xs }}>
+                <Text variant="label" color={t.colors.onSurfaceVariant} style={{ paddingHorizontal: t.spacing.lg }}>PEOPLE</Text>
+                <FlatList
+                  horizontal
+                  data={peopleList}
+                  keyExtractor={(p) => 'person:' + p.id}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => router.push({ pathname: '/people/[id]', params: { id: item.id, name: item.name ?? 'Person' } })}
+                      style={{ alignItems: 'center', width: 84 }}
+                    >
+                      <FaceThumb photoId={item.coverPhotoId} face={item.coverFace} size={80} bg={t.colors.surfaceContainerHigh} />
+                      <Text variant="caption" numberOfLines={1} style={{ marginTop: 5, maxWidth: 84, textAlign: 'center' }}>
+                        {item.name ?? 'Add Name'}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+            ) : null}
+
+            {placesList.length > 0 ? (
+              <View style={{ gap: t.spacing.xs }}>
+                <Text variant="label" color={t.colors.onSurfaceVariant} style={{ paddingHorizontal: t.spacing.lg }}>PLACES</Text>
+                <FlatList
+                  horizontal
+                  data={placesList}
+                  keyExtractor={(p) => 'place:' + p.label}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => router.push({ pathname: '/place/[label]', params: { label: item.label } })}
+                      style={{ width: 116 }}
+                    >
+                      <View style={{ width: 116, height: 116, borderRadius: t.radius.lg, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
+                        <RemoteThumb photoId={item.coverPhotoId} displaySize={130} style={{ width: '100%', height: '100%' }} />
+                      </View>
+                      <Text variant="caption" numberOfLines={1} style={{ marginTop: 5, maxWidth: 116 }}>
+                        {item.label.split(',')[0]}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+            ) : null}
           </View>
         ) : null}
 

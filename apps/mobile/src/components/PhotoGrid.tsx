@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Pressable, Text as RNText, SectionList, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { ZoomGrid } from 'react-native-zoom-grid';
 import type { PhotoRecord } from '@nook/core';
 import { formatDuration, groupByDay } from '@nook/core';
@@ -164,10 +165,13 @@ function GroupedGrid({
         onEnterSelect?.();
         dragMode.current = !(selectedRef.current?.has(id) ?? false);
         lastId.current = null;
+        // A firmer tap confirms the press-and-hold started a selection.
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
       if (id !== lastId.current) {
         onSetSelect?.(id, dragMode.current);
         lastId.current = id;
+        if (!isStart) Haptics.selectionAsync().catch(() => {}); // light tick per new cell
       }
     },
     [hitTest, onEnterSelect, onSetSelect],
