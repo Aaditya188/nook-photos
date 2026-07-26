@@ -83,12 +83,28 @@ class Pipeline:
 
     def _tick(self):
         photos = self._read_db().get("photos", [])
-        live = [p for p in photos if p.get("uploadState") == "complete" and not p.get("deletedAt")]
+        # Hidden photos are excluded as firmly as deleted ones. Hiding a photo has to
+        # remove it from search AND from face clustering, or its face can still surface
+        # as a People cover and its content is still findable by text — which defeats
+        # the point of hiding it. Because the reconcile below drops anything indexed
+        # that is no longer live, this one filter also PURGES already-indexed hidden
+        # photos on the next sweep, and un-hiding re-queues them automatically.
+        live = [
+            p
+            for p in photos
+            if p.get("uploadState") == "complete" and not p.get("deletedAt") and not p.get("hidden")
+        ]
         live_ids = {p["id"] for p in live}
         indexed = self.store.indexed_ids()
 
-        for pid in list(indexed - live_ids):  # deleted/purged → drop from index
+        dropped = list(indexed - live_ids)  # deleted, hidden or purged
+        for pid in dropped:
             self.store.remove_photo(pid)
+        if dropped:
+            # Removing faces changes the grouping, so ask for one authoritative
+            # recluster when the queue next drains. Without this, People keeps the
+            # membership it computed while the now-hidden faces were still present.
+            self._dirty = True
 
         todo = [p for p in live if p["id"] not in indexed]
         self.status["pending"] = len(todo)

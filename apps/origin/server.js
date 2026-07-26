@@ -47,6 +47,10 @@ const DATA_DIR = path.resolve(ROOT, process.env.NOOK_DATA_DIR || 'data');
 const ORIGINALS_DIR = path.join(DATA_DIR, 'originals');
 const THUMBS_DIR = path.join(DATA_DIR, 'thumbs');
 const AVATARS_DIR = path.join(DATA_DIR, 'avatars');
+// The short video paired with a Live Photo. Kept beside the still rather than as its
+// own photo record: it is one moment, it must not appear twice in the library, and it
+// has to disappear with the still it belongs to.
+const MOTION_DIR = path.join(DATA_DIR, 'motion');
 const PUBLIC_DIR = path.resolve(ROOT, 'public');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
@@ -140,7 +144,7 @@ function publicUrl() {
 const db = { users: [], tokens: {}, photos: [], albums: [], settings: {} };
 
 function bootFs() {
-  for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR, AVATARS_DIR]) {
+  for (const dir of [DATA_DIR, ORIGINALS_DIR, THUMBS_DIR, AVATARS_DIR, MOTION_DIR]) {
     fs.mkdirSync(dir, { recursive: true });
   }
   sweepStaleTemps();
@@ -236,6 +240,17 @@ function originalPath(id) {
 function thumbPath(id) {
   return path.join(THUMBS_DIR, id + '.jpg');
 }
+/** The Live Photo motion clip for a still. Always .mp4/.mov bytes as uploaded. */
+function motionPath(id) {
+  return path.join(MOTION_DIR, id);
+}
+function hasMotion(id) {
+  try {
+    return fs.statSync(motionPath(id)).size > 0;
+  } catch (err) {
+    return false;
+  }
+}
 function avatarPath(userId) {
   return path.join(AVATARS_DIR, userId + '.jpg');
 }
@@ -259,7 +274,7 @@ function hardRemovePhoto(photo) {
       if (a.coverPhotoId === photo.id) a.coverPhotoId = null;
     }
   }
-  for (const file of [originalPath(photo.id), thumbPath(photo.id)]) {
+  for (const file of [originalPath(photo.id), thumbPath(photo.id), motionPath(photo.id)]) {
     try {
       fs.unlinkSync(file);
     } catch (err) {
@@ -462,19 +477,41 @@ function toPublicPhoto(p) {
     deletedAt: p.deletedAt == null ? null : p.deletedAt,
     thumbUrl: '/api/photos/' + p.id + '/thumb',
     originalUrl: '/api/photos/' + p.id + '/original',
+    // A Live Photo can be flagged `live` without its clip being backed up — the flag
+    // is metadata from the phone, the clip is a separate upload that older clients
+    // never sent. Clients must gate playback on this, not on `live`.
+    hasMotion: p.live === true && hasMotion(p.id),
   };
+}
+
+/**
+ * Hidden and soft-deleted photos must not surface through an album — that is the
+ * whole point of hiding one. Membership is FILTERED rather than removed, because
+ * hiding is reversible and un-hiding should put the photo back where it was.
+ * (Soft delete is different: it removes album membership outright, since Recently
+ * Deleted is a one-way door until you restore.)
+ */
+function albumVisibleIds(a) {
+  const byId = new Map(db.photos.map((p) => [p.id, p]));
+  return a.photoIds.filter((pid) => {
+    const p = byId.get(pid);
+    return p && p.deletedAt == null && p.hidden !== true;
+  });
 }
 
 function toPublicAlbum(a, viewerId) {
   const level = viewerId ? albumAccessLevel(a, viewerId) : 'owner';
   const owner = db.users.find((u) => u.id === a.userId);
+  const visible = albumVisibleIds(a);
   const out = {
     id: a.id,
     userId: a.userId,
     name: a.name,
-    coverPhotoId: a.coverPhotoId == null ? null : a.coverPhotoId,
-    photoCount: a.photoIds.length,
-    photoIds: a.photoIds.slice(),
+    // Never use a hidden or deleted photo as the cover.
+    coverPhotoId:
+      a.coverPhotoId != null && visible.indexOf(a.coverPhotoId) !== -1 ? a.coverPhotoId : null,
+    photoCount: visible.length,
+    photoIds: visible,
     createdAt: a.createdAt,
     sharedRole: level || 'view',
     ownerName: owner ? (owner.displayName || owner.username) : '',
@@ -1185,7 +1222,7 @@ function handleDeleteUser(res, user, targetId) {
   // Cascade: remove the user's photos (and files), albums, tokens, then the user.
   const ownedPhotos = db.photos.filter((p) => p.userId === target.id);
   for (const p of ownedPhotos) {
-    for (const file of [originalPath(p.id), thumbPath(p.id)]) {
+    for (const file of [originalPath(p.id), thumbPath(p.id), motionPath(p.id)]) {
       try {
         fs.unlinkSync(file);
       } catch (err) {
@@ -1430,6 +1467,30 @@ async function handleGetOriginal(req, res, photo) {
   if (!served) throw httpError(404, 'original not uploaded for ' + photo.id);
 }
 
+/**
+ * The Live Photo motion clip. Uploaded separately from the still because it is a
+ * second file for the same moment — storing it as its own photo record would make
+ * every Live Photo appear twice in the library.
+ */
+async function handlePutMotion(req, res, photo, user) {
+  if (photo.live !== true) throw httpError(400, 'photo is not a Live Photo');
+  const buf = await readBody(req, MAX_UPLOAD_BYTES);
+  if (buf.length === 0) throw httpError(400, 'empty motion body');
+  writeFileAtomic(motionPath(photo.id), buf);
+  photo.motionContentType = req.headers['content-type'] || 'video/quicktime';
+  photo.motionBytes = buf.length;
+  user.lastBackupAt = new Date().toISOString();
+  persist();
+  sendJson(res, 200, { ok: true, hasMotion: true, bytes: buf.length });
+}
+
+async function handleGetMotion(req, res, photo) {
+  // serveFile handles Range, so the viewer can start playing without the whole clip.
+  const type = photo.motionContentType || 'video/quicktime';
+  const served = await serveFile(res, motionPath(photo.id), type, req);
+  if (!served) throw httpError(404, 'no motion clip backed up for ' + photo.id);
+}
+
 async function handlePatchPhoto(req, res, photo) {
   const body = await readJsonBody(req);
   if (body.favorite !== undefined) {
@@ -1586,7 +1647,7 @@ function handleAlbumPhotos(res, album) {
   const byId = new Map(db.photos.map((p) => [p.id, p]));
   const photos = album.photoIds
     .map((pid) => byId.get(pid))
-    .filter((p) => p && p.deletedAt == null)
+    .filter((p) => p && p.deletedAt == null && p.hidden !== true)
     .map(toPublicPhoto);
   sendJson(res, 200, { photos: photos });
 }
@@ -1633,7 +1694,7 @@ function handleRemoveGrant(res, album, user, granteeId) {
 // API routing
 // ---------------------------------------------------------------------------
 
-const PHOTO_ROUTE = /^\/api\/photos\/([A-Za-z0-9_-]+)(?:\/(thumb|original|restore|permanent))?$/;
+const PHOTO_ROUTE = /^\/api\/photos\/([A-Za-z0-9_-]+)(?:\/(thumb|original|motion|restore|permanent))?$/;
 const ALBUM_ROUTE = /^\/api\/albums\/([A-Za-z0-9_-]+)$/;
 const USER_ROUTE = /^\/api\/users\/([A-Za-z0-9_-]+)$/;
 
@@ -1780,7 +1841,13 @@ async function handleApi(req, res, pathname) {
       if (p && (p.userId === user.id || photoSharedToUser(id, user.id))) return handleGetOriginal(req, res, p);
       throw httpError(404, 'no photo with id ' + id);
     }
+    if (sub === 'motion' && req.method === 'GET') {
+      const p = findPhoto(id);
+      if (p && (p.userId === user.id || photoSharedToUser(id, user.id))) return handleGetMotion(req, res, p);
+      throw httpError(404, 'no photo with id ' + id);
+    }
     const photo = ownedPhoto(id, user);
+    if (sub === 'motion' && req.method === 'PUT') return handlePutMotion(req, res, photo, user);
     if (sub === 'thumb' && req.method === 'PUT') return handlePutThumb(req, res, photo);
     if (sub === 'original' && req.method === 'PUT') return handlePutOriginal(req, res, photo, user);
     if (sub === 'restore' && req.method === 'POST') return handleRestorePhoto(res, photo);
