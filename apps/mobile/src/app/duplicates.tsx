@@ -116,7 +116,7 @@ export default function DuplicatesScreen() {
           {selected.size > 0 ? (
             <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: t.spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: t.colors.surfaceContainerHighest, borderTopWidth: 0.5, borderTopColor: t.colors.outlineVariant, gap: t.spacing.md }}>
               <Text variant="caption" color={t.colors.onSurfaceVariant} style={{ flex: 1 }}>{selected.size} selected · frees {humanBytes(freed)}</Text>
-              <Button title="Delete copies" variant="tonal" loading={del.isPending} onPress={removeSelected} />
+              <Button title="Delete copies" variant="danger" loading={del.isPending} onPress={removeSelected} />
             </View>
           ) : null}
         </>

@@ -84,16 +84,23 @@ export function Button({
 }: PressableProps & {
   title: string;
   loading?: boolean;
-  variant?: 'primary' | 'tonal' | 'ghost';
+  variant?: 'primary' | 'tonal' | 'ghost' | 'danger';
 }) {
   const t = useTheme();
   const bg =
     variant === 'primary'
       ? t.colors.primaryContainer
-      : variant === 'tonal'
-        ? t.colors.surfaceContainerHigh
-        : 'transparent';
-  const fg = variant === 'primary' ? t.colors.onPrimary : t.colors.onSurface;
+      : variant === 'danger'
+        ? t.colors.error
+        : variant === 'tonal'
+          ? t.colors.surfaceContainerHigh
+          : 'transparent';
+  const fg =
+    variant === 'primary'
+      ? t.colors.onPrimary
+      : variant === 'danger'
+        ? t.colors.onError
+        : t.colors.onSurface;
   const isDisabled = disabled || loading;
   return (
     <Pressable
@@ -104,6 +111,7 @@ export function Button({
         {
           height: 50,
           borderRadius: 14,
+          paddingHorizontal: 20,
           backgroundColor: bg,
           alignItems: 'center',
           justifyContent: 'center',
