@@ -65,7 +65,18 @@ export function Screen({
     <SafeAreaView edges={edges} style={[{ flex: 1, backgroundColor: t.colors.background }, style]}>
       <Body
         {...(scroll
-          ? { contentContainerStyle: [pad, contentStyle], showsVerticalScrollIndicator: false }
+          ? {
+              // Keep the focused input above the keyboard: iOS auto-insets the
+              // scroll view by the keyboard height and scrolls the field into
+              // view; Android resizes the window (see app.json). flexGrow lets
+              // short forms still scroll up. Taps on buttons work with the
+              // keyboard open, and dragging dismisses it.
+              contentContainerStyle: [{ flexGrow: 1 }, pad, contentStyle],
+              showsVerticalScrollIndicator: false,
+              keyboardShouldPersistTaps: 'handled' as const,
+              keyboardDismissMode: 'on-drag' as const,
+              automaticallyAdjustKeyboardInsets: true,
+            }
           : { style: [{ flex: 1 }, pad, contentStyle] })}>
         {children}
       </Body>

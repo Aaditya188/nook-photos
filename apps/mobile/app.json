@@ -20,6 +20,7 @@
     "android": {
       "package": "in.ghantacoder.nookphotos",
       "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0b0b0c",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
