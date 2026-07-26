@@ -6,9 +6,10 @@
  * Each cell requests a thumbnail sized to the cell so we never over-fetch. Tapping
  * opens the viewer; long-press (or Select mode) toggles selection.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Pressable, Text as RNText, SectionList, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { ZoomGrid } from 'react-native-zoom-grid';
 import type { PhotoRecord } from '@nook/core';
 import { formatDuration, groupByDay } from '@nook/core';
@@ -18,12 +19,18 @@ import { useTheme } from '@/theme';
 
 const GAP = 2;
 
+type CellFrame = { x: number; y: number; w: number; h: number };
+
 type GridProps = {
   photos: PhotoRecord[];
   onPressPhoto: (photo: PhotoRecord, index: number) => void;
   selectionMode?: boolean;
   selected?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  /** Explicit set (used by drag-select so a pass doesn't un-toggle). */
+  onSetSelect?: (id: string, on: boolean) => void;
+  /** Enter selection mode (drag-select can start from a normal grid). */
+  onEnterSelect?: () => void;
   renderHeader?: () => React.ReactNode;
   onEndReached?: () => void;
   /** Day-sectioned timeline with sticky date headers (web parity). */
@@ -41,6 +48,8 @@ function Cell({
   selectionMode,
   isSelected,
   onToggleSelect,
+  registerFrame,
+  disableLongPress,
 }: {
   item: PhotoRecord;
   index: number;
@@ -49,13 +58,27 @@ function Cell({
   selectionMode: boolean;
   isSelected: boolean;
   onToggleSelect?: (id: string) => void;
+  /** Report/clear this cell's window rect so drag-select can hit-test it. */
+  registerFrame?: (id: string, frame: CellFrame | null) => void;
+  disableLongPress?: boolean;
 }) {
   const t = useTheme();
   const cell = size - GAP;
+  const ref = useRef<View>(null);
+  useEffect(() => {
+    if (!registerFrame) return;
+    return () => registerFrame(item.id, null); // drop this cell's rect when it unmounts
+  }, [registerFrame, item.id]);
   return (
     <Pressable
+      ref={registerFrame ? ref : undefined}
       onPress={() => (selectionMode ? onToggleSelect?.(item.id) : onPressPhoto(item, index))}
-      onLongPress={() => onToggleSelect?.(item.id)}
+      onLongPress={disableLongPress ? undefined : () => onToggleSelect?.(item.id)}
+      onLayout={
+        registerFrame
+          ? () => ref.current?.measureInWindow((x, y, w, h) => registerFrame(item.id, { x, y, w, h }))
+          : undefined
+      }
       style={{ width: size, height: size, padding: GAP / 2 }}>
       <View style={{ flex: 1, borderRadius: 5, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
         <RemoteThumb photoId={item.id} displaySize={cell} style={{ width: '100%', height: '100%' }} />
@@ -99,6 +122,8 @@ function GroupedGrid({
   selectionMode = false,
   selected,
   onToggleSelect,
+  onSetSelect,
+  onEnterSelect,
   renderHeader,
   onEndReached,
   columns = 3,
@@ -106,6 +131,60 @@ function GroupedGrid({
   const t = useTheme();
   const { width } = useWindowDimensions();
   const size = Math.floor((width - GAP * (columns - 1)) / columns);
+
+  // ---- Drag-to-select (Apple/Google Photos style) ----
+  // A long-press activates a pan; dragging across cells applies one action
+  // (select if the first cell was unselected, else deselect). Enabled only when
+  // the screen provides onSetSelect. A quick swipe still scrolls the list — the
+  // pan only activates after a short hold, so scrolling is unaffected.
+  const dragEnabled = !!onSetSelect;
+  const frames = useRef(new Map<string, CellFrame>());
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const dragMode = useRef(true);
+  const lastId = useRef<string | null>(null);
+
+  const registerFrame = useCallback((id: string, frame: CellFrame | null) => {
+    if (frame) frames.current.set(id, frame);
+    else frames.current.delete(id);
+  }, []);
+
+  const hitTest = useCallback((x: number, y: number): string | null => {
+    for (const [id, f] of frames.current) {
+      if (x >= f.x && x < f.x + f.w && y >= f.y && y < f.y + f.h) return id;
+    }
+    return null;
+  }, []);
+
+  const applyAt = useCallback(
+    (x: number, y: number, isStart: boolean) => {
+      const id = hitTest(x, y);
+      if (!id) return;
+      if (isStart) {
+        onEnterSelect?.();
+        dragMode.current = !(selectedRef.current?.has(id) ?? false);
+        lastId.current = null;
+      }
+      if (id !== lastId.current) {
+        onSetSelect?.(id, dragMode.current);
+        lastId.current = id;
+      }
+    },
+    [hitTest, onEnterSelect, onSetSelect],
+  );
+
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activateAfterLongPress(180)
+        .runOnJS(true)
+        .onStart((e) => applyAt(e.absoluteX, e.absoluteY, true))
+        .onUpdate((e) => applyAt(e.absoluteX, e.absoluteY, false))
+        .onEnd(() => {
+          lastId.current = null;
+        }),
+    [applyAt],
+  );
 
   // A flat index across all photos lets the viewer open at the right position.
   const indexOf = useMemo(() => {
@@ -136,14 +215,16 @@ function GroupedGrid({
             selectionMode={selectionMode}
             isSelected={selected?.has(p.id) ?? false}
             onToggleSelect={onToggleSelect}
+            registerFrame={dragEnabled ? registerFrame : undefined}
+            disableLongPress={dragEnabled}
           />
         ))}
       </View>
     ),
-    [indexOf, size, onPressPhoto, selectionMode, selected, onToggleSelect],
+    [indexOf, size, onPressPhoto, selectionMode, selected, onToggleSelect, dragEnabled, registerFrame],
   );
 
-  return (
+  const list = (
     <SectionList
       sections={sections}
       keyExtractor={(row, i) => (row[0]?.id ?? 'r') + ':' + i}
@@ -159,10 +240,13 @@ function GroupedGrid({
       onEndReachedThreshold={1.2}
       initialNumToRender={12}
       windowSize={9}
-      removeClippedSubviews
+      removeClippedSubviews={false}
       contentContainerStyle={{ paddingBottom: 24 }}
     />
   );
+
+  // A quick swipe still scrolls (the pan only activates after a short hold).
+  return dragEnabled ? <GestureDetector gesture={pan}>{list}</GestureDetector> : list;
 }
 
 /** Pinch-zoomable flat grid — used by collections (albums, people, places…). */

@@ -38,6 +38,17 @@ export default function LibraryScreen() {
     });
   }
 
+  // Drag-select applies one explicit action per cell so a pass doesn't flip a
+  // cell back off.
+  function setSelectState(id: string, on: boolean) {
+    setSelected((prev) => {
+      if (prev.has(id) === on) return prev;
+      const next = new Set(prev);
+      on ? next.add(id) : next.delete(id);
+      return next;
+    });
+  }
+
   async function deleteSelected() {
     const ids = [...selected];
     setSelectMode(false);
@@ -106,6 +117,8 @@ export default function LibraryScreen() {
         selectionMode={selectMode}
         selected={selected}
         onToggleSelect={toggleSelect}
+        onSetSelect={setSelectState}
+        onEnterSelect={() => setSelectMode(true)}
       />
       {selectMode && selected.size > 0 ? (
         <View
