@@ -1,7 +1,8 @@
 import { View, Pressable } from 'react-native';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAccount, type ThemeMode } from '@nook/core';
+import { useAccount, useNookClient, type ThemeMode } from '@nook/core';
 import { Screen, Text, Card, Button, Divider } from '@/components/ui';
 import { useAuth } from '@/store/auth';
 import { useSettings } from '@/store/settings';
@@ -16,8 +17,10 @@ export default function ProfileScreen() {
   const themeMode = useSettings((s) => s.themeMode);
   const setThemeMode = useSettings((s) => s.setThemeMode);
   const account = useAccount();
+  const client = useNookClient();
 
   const user = account.data ?? cachedUser;
+  const avatarUrl = account.data?.avatarUrl;
 
   return (
     <Screen scroll contentStyle={{ paddingTop: t.spacing.md, gap: t.spacing.lg, paddingBottom: t.spacing.xxl }}>
@@ -29,13 +32,23 @@ export default function ProfileScreen() {
             width: 72,
             height: 72,
             borderRadius: 36,
+            overflow: 'hidden',
             backgroundColor: t.colors.primaryContainer,
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <Text variant="headline" color={t.colors.onPrimary}>
-            {(user?.displayName ?? user?.username ?? '?').slice(0, 1).toUpperCase()}
-          </Text>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: client.url(avatarUrl), headers: client.authHeaders() }}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          ) : (
+            <Text variant="headline" color={t.colors.onPrimary}>
+              {(user?.displayName ?? user?.username ?? '?').slice(0, 1).toUpperCase()}
+            </Text>
+          )}
         </View>
         <Text variant="title">{user?.displayName ?? user?.username ?? 'Account'}</Text>
         {user?.email ? (
