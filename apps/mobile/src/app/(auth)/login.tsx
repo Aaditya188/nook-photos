@@ -44,8 +44,8 @@ export default function LoginScreen() {
   const host = serverUrl?.replace(/^https?:\/\//, '') ?? '';
 
   return (
-    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.lg, gap: t.spacing.xl }}>
-      <AuthHero />
+    <Screen scroll edges={['top', 'bottom']} contentStyle={{ paddingTop: t.spacing.xl, gap: t.spacing.lg }}>
+      <AuthHero compact />
 
       <View style={{ gap: t.spacing.xs }}>
         <Text variant="headline">{isSetup ? 'Create your account' : 'Welcome back'}</Text>

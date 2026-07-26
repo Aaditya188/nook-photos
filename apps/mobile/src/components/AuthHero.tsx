@@ -77,9 +77,49 @@ function MosaicTile({ tint, primary, surface, delay }: { tint: number; primary: 
   );
 }
 
-export function AuthHero() {
+export function AuthHero({ compact = false }: { compact?: boolean }) {
   const t = useTheme();
   const green = t.colors.primaryContainer;
+
+  // Slim brand strip for the login/setup form: mark + name + a one-line tagline,
+  // no mosaic — so the fields sit high and clear the keyboard.
+  if (compact) {
+    return (
+      <View style={{ overflow: 'hidden', borderRadius: 20, marginBottom: t.spacing.lg }}>
+        <View
+          style={{
+            backgroundColor: t.colors.surfaceContainer,
+            paddingHorizontal: t.spacing.lg,
+            paddingVertical: t.spacing.lg,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            overflow: 'hidden',
+          }}>
+          <AuroraBlob color={green} size={150} top={-64} right={-40} dur={5200} delay={0} />
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              backgroundColor: green,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <MaterialCommunityIcons name="image-multiple" size={26} color={t.colors.onPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text variant="title" style={{ letterSpacing: 0.3 }}>
+              Nook Photos
+            </Text>
+            <Text variant="caption" color={t.colors.onSurfaceVariant}>
+              Your photos. Your server. Nobody else&apos;s.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ overflow: 'hidden', borderRadius: 24, marginBottom: t.spacing.xl }}>
