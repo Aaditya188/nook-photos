@@ -17,7 +17,7 @@ import replyFrom from '@fastify/reply-from';
 import fastifyStatic from '@fastify/static';
 import { ORIGIN, PORT, ORIGINALS_DIR } from './config.js';
 import { authorizePhoto } from './db.js';
-import { getSizedThumb, getViewJpeg } from './thumbs.js';
+import { getSizedThumb, getViewJpeg, getDHash } from './thumbs.js';
 import { loginBlockedFor, recordLoginFailure, recordLoginSuccess } from './ratelimit.js';
 import sharpLib from 'sharp';
 import { annotatePhotos, applyRecipe, clearEdit, getEdit, sanitizeRecipe, setEdit } from './edits.js';
@@ -501,6 +501,30 @@ app.get<{ Params: { id: string }; Querystring: { w?: string; raw?: string } }>(
       .send(buf);
   },
 );
+
+/**
+ * Perceptual hashes for a set of photos (`?ids=a,b,c`) so clients without a
+ * canvas (React Native) can verify duplicate candidates the same way the web app
+ * does. Only the caller's own photos are hashed; unknown/foreign ids are omitted.
+ */
+app.get<{ Querystring: { ids?: string } }>('/api/dhashes', async (req, reply) => {
+  const token = bearer(req);
+  if (!userIdForToken(token)) return reply.code(401).send({ error: 'unauthorized' });
+  const ids = String(req.query.ids ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 200); // cap the work per request
+  const hashes: Record<string, string> = {};
+  await Promise.all(
+    ids.map(async (id) => {
+      if (!authorizePhoto(token, id)) return; // skip anything the caller doesn't own
+      const h = await getDHash(id);
+      if (h) hashes[id] = h;
+    }),
+  );
+  return reply.header('Cache-Control', 'private, max-age=3600').send({ hashes });
+});
 
 /** Full-resolution, browser-renderable JPEG for the viewer (HEIC decoded here). */
 app.get<{ Params: { id: string }; Querystring: { w?: string } }>(

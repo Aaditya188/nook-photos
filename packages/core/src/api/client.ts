@@ -78,6 +78,17 @@ export class NookClient {
   }
 
   /**
+   * Perceptual hashes (dHash hex) for a set of photos, computed server-side so
+   * clients without a canvas (React Native) can verify duplicate candidates.
+   */
+  dhashes(ids: string[]) {
+    return this.request<{ hashes: Record<string, string> }>(
+      'GET',
+      `/api/dhashes?ids=${ids.map(encodeURIComponent).join(',')}`,
+    );
+  }
+
+  /**
    * The short clip paired with a Live Photo. Range-served like any other video, so a
    * press-and-hold can start playing without fetching the whole thing. Only meaningful
    * when the record's `hasMotion` is true.

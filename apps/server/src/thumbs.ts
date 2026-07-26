@@ -94,6 +94,43 @@ function pickSource(id: string): string | null {
   return null;
 }
 
+const dhashCache = new Map<string, string>();
+
+/**
+ * Perceptual hash (dHash, 64-bit hex) of a photo, matching the web app's canvas
+ * algorithm so the two are interchangeable: 9x8 greyscale, each pixel compared to
+ * its right neighbour (left < right => 1), row-major, 4 bits per hex char. Lets
+ * clients that can't run a canvas (React Native) verify duplicate candidates.
+ * Cached per id — a photo's pixels don't change once uploaded.
+ */
+export async function getDHash(id: string): Promise<string | null> {
+  const cached = dhashCache.get(id);
+  if (cached) return cached;
+  const src = pickSource(id);
+  if (!src) return null;
+  try {
+    const buf = await sharp(src, { failOn: 'none' })
+      .rotate()
+      .greyscale()
+      .resize(9, 8, { fit: 'fill' })
+      .raw()
+      .toBuffer();
+    let bits = '';
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const i = row * 9 + col;
+        bits += buf[i]! < buf[i + 1]! ? '1' : '0';
+      }
+    }
+    let hex = '';
+    for (let k = 0; k < 64; k += 4) hex += parseInt(bits.slice(k, k + 4), 2).toString(16);
+    dhashCache.set(id, hex);
+    return hex;
+  } catch {
+    return null;
+  }
+}
+
 function isHeicName(name: string | undefined): boolean {
   return /\.(heic|heif)$/i.test(name ?? '');
 }

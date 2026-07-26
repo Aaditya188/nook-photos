@@ -8,7 +8,14 @@ import { View, Pressable, ScrollView, Alert } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useLibrary, useDeletePhoto, findDuplicateGroups, humanBytes } from '@nook/core';
+import {
+  useLibrary,
+  useDeletePhoto,
+  useNookClient,
+  findDuplicateGroups,
+  refineDuplicates,
+  humanBytes,
+} from '@nook/core';
 import { RemoteThumb } from '@/components/RemoteImage';
 import { Text, Card, Button, BrandLoader, ScreenHeader } from '@/components/ui';
 import { useViewer } from '@/store/viewer';
@@ -17,9 +24,45 @@ import { useTheme } from '@/theme';
 export default function DuplicatesScreen() {
   const t = useTheme();
   const library = useLibrary();
+  const client = useNookClient();
   const del = useDeletePhoto();
   const setViewerList = useViewer((s) => s.setList);
-  const groups = useMemo(() => findDuplicateGroups(library.data ?? []), [library.data]);
+
+  // Candidates share size+dimensions; verify them with server-computed perceptual
+  // hashes (RN has no canvas) so a road video and a beach photo that happen to
+  // collide on bytes don't get grouped together.
+  const candidates = useMemo(() => findDuplicateGroups(library.data ?? []), [library.data]);
+  const [hashes, setHashes] = useState<Map<string, string>>(new Map());
+  const [hashing, setHashing] = useState(false);
+
+  useEffect(() => {
+    const ids = candidates.flatMap((g) => g.photos.map((p) => p.id));
+    if (ids.length === 0) {
+      setHashes(new Map());
+      return;
+    }
+    let alive = true;
+    setHashing(true);
+    client
+      .dhashes(ids)
+      .then((r) => {
+        if (alive) setHashes(new Map(Object.entries(r.hashes)));
+      })
+      .catch(() => {
+        if (alive) setHashes(new Map()); // fall back to size+dims grouping
+      })
+      .finally(() => {
+        if (alive) setHashing(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [candidates, client]);
+
+  const groups = useMemo(
+    () => (hashing ? [] : refineDuplicates(candidates, hashes)),
+    [candidates, hashes, hashing],
+  );
   const flat = useMemo(() => groups.flatMap((g) => g.photos), [groups]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -62,13 +105,13 @@ export default function DuplicatesScreen() {
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: t.colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScreenHeader title="Duplicates" />
-      {library.isLoading ? (
-        <BrandLoader label="Scanning for duplicates…" />
+      {library.isLoading || hashing ? (
+        <BrandLoader label={hashing ? 'Verifying with image hashing…' : 'Scanning for duplicates…'} />
       ) : groups.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing.md, padding: t.spacing.xl }}>
           <MaterialIcons name="done-all" size={44} color={t.colors.outline} />
           <Text variant="body" color={t.colors.onSurfaceVariant} style={{ textAlign: 'center' }}>
-            No duplicates found. Nook groups items that share an identical size and dimensions.
+            No duplicates found. Nook compares the actual image content, not just file size.
           </Text>
         </View>
       ) : (
