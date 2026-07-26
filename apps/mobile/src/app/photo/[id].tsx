@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert, Modal } from 'react-native';
+import { View, Pressable, FlatList, useWindowDimensions, StatusBar, Alert, Modal, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -66,22 +66,56 @@ export default function PhotoViewer() {
     setChrome(true);
     setInfo(true);
   }, []);
+  const hideChrome = useCallback(() => setChrome(false), []);
 
-  // Vertical swipe on the media: down → close (back to the grid), up → info.
-  // Disabled while zoomed (the image pans instead); yields to horizontal paging
-  // via failOffsetX so left/right swipes still change photo.
+  // Finger-tracked pull-to-dismiss. The media follows the finger and shrinks
+  // while the black backdrop fades out (revealing the grid behind — the screen
+  // is a transparentModal). Release past a threshold closes; otherwise it
+  // springs back. An upward swipe opens Info.
+  const dragY = useSharedValue(0);
+  const dragX = useSharedValue(0);
+  const scaleV = useSharedValue(1);
+  const backdrop = useSharedValue(1);
+
   const verticalSwipe = useMemo(
     () =>
       Gesture.Pan()
         .enabled(!zoomed)
         .activeOffsetY([-24, 24])
         .failOffsetX([-24, 24])
+        .onStart(() => {
+          runOnJS(hideChrome)();
+        })
+        .onUpdate((e) => {
+          dragY.value = e.translationY;
+          dragX.value = e.translationX * 0.6;
+          const p = Math.min(1, Math.max(0, e.translationY) / (height * 0.55));
+          scaleV.value = 1 - p * 0.28; // shrink as you pull down
+          backdrop.value = 1 - p * 0.9; // fade the black backdrop away
+        })
         .onEnd((e) => {
-          if (e.translationY > 90 || e.velocityY > 800) runOnJS(closeViewer)();
-          else if (e.translationY < -90 || e.velocityY < -800) runOnJS(showInfo)();
+          const dismiss = e.translationY > 120 || e.velocityY > 900;
+          const wantInfo = e.translationY < -90 || e.velocityY < -800;
+          if (dismiss) {
+            dragY.value = withTiming(height, { duration: 180 });
+            backdrop.value = withTiming(0, { duration: 160 });
+            runOnJS(closeViewer)();
+          } else {
+            dragY.value = withSpring(0, { damping: 18 });
+            dragX.value = withSpring(0, { damping: 18 });
+            scaleV.value = withSpring(1, { damping: 18 });
+            backdrop.value = withTiming(1, { duration: 160 });
+            if (wantInfo) runOnJS(showInfo)();
+            else runOnJS(setChrome)(true);
+          }
         }),
-    [zoomed, closeViewer, showInfo],
+    [zoomed, height, closeViewer, showInfo, hideChrome, dragY, dragX, scaleV, backdrop],
   );
+
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value }));
+  const mediaStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dragX.value }, { translateY: dragY.value }, { scale: scaleV.value }],
+  }));
 
   // Slideshow: auto-advance every 4s (wrapping), chrome hidden. Any tap stops it.
   useEffect(() => {
@@ -194,11 +228,18 @@ export default function PhotoViewer() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
+    <View style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{ headerShown: false, animation: 'fade', presentation: 'transparentModal', contentStyle: { backgroundColor: 'transparent' } }}
+      />
       <StatusBar hidden={!chrome} />
 
+      {/* Black backdrop that fades out as the photo is pulled down, revealing
+          the grid behind (the screen is a transparent modal). */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }, backdropStyle]} />
+
       <GestureDetector gesture={verticalSwipe}>
+      <Animated.View style={[{ flex: 1 }, mediaStyle]}>
       <FlatList
         ref={listRef}
         data={photos}
@@ -230,6 +271,7 @@ export default function PhotoViewer() {
           )
         }
       />
+      </Animated.View>
       </GestureDetector>
 
       {chrome ? (
