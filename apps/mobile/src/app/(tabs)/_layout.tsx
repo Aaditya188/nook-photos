@@ -31,8 +31,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="albums"
         options={{
-          title: 'Albums',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="photo-album" size={size} color={color} />,
+          title: 'Collections',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="view-grid-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

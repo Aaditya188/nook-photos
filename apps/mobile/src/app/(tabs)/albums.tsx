@@ -1,37 +1,69 @@
-import { useMemo, useState } from 'react';
-import { View, Pressable, ScrollView, Alert } from 'react-native';
+/**
+ * Collections — the mobile hub, styled after Apple Photos' Collections tab:
+ * a Featured rail, People and Trips rails, the album grid, and Media-Types /
+ * Utilities lists. Every section is fed by the shared @nook/core queries and
+ * links into the existing detail routes.
+ */
+import { useMemo } from 'react';
+import { View, Pressable, ScrollView, Alert, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAlbums, useLibrary, useCreateAlbum, useDeletedPhotos, type Album } from '@nook/core';
-import { RemoteThumb } from '@/components/RemoteImage';
+import {
+  useAlbums,
+  useLibrary,
+  usePeople,
+  useCreateAlbum,
+  useDeletedPhotos,
+  detectTrips,
+  tripTitle,
+  type Album,
+  type PhotoRecord,
+} from '@nook/core';
+import { RemoteThumb, FaceThumb } from '@/components/RemoteImage';
 import { Text, Card, Divider, BrandLoader } from '@/components/ui';
+import { useViewer } from '@/store/viewer';
 import { useTheme } from '@/theme';
 
-export default function AlbumsScreen() {
+export default function CollectionsScreen() {
   const t = useTheme();
   const albums = useAlbums();
   const library = useLibrary();
+  const people = usePeople();
   const deleted = useDeletedPhotos();
   const createAlbum = useCreateAlbum();
+  const setViewerList = useViewer((s) => s.setList);
 
-  // Every section here is fed by one of the three queries, so hold the whole
-  // screen on the first fetch — otherwise "No albums yet" and zeroed counts
-  // flash before the real data lands.
   const loading = albums.isLoading || library.isLoading || deleted.isLoading;
 
-  const counts = useMemo(() => {
-    const live = (library.data ?? []).filter((p) => !p.hidden && p.uploadState === 'complete');
-    return {
+  const live = useMemo(
+    () => (library.data ?? []).filter((p) => !p.hidden && p.uploadState === 'complete'),
+    [library.data],
+  );
+
+  const counts = useMemo(
+    () => ({
       videos: live.filter((p) => p.mediaType === 'video').length,
       portraits: live.filter((p) => p.portrait).length,
       screenshots: live.filter((p) => p.screenshot).length,
       panoramas: live.filter((p) => p.panorama).length,
       livePhotos: live.filter((p) => p.live).length,
+      favorites: live.filter((p) => p.favorite).length,
       hidden: (library.data ?? []).filter((p) => p.hidden).length,
       deleted: deleted.data?.length ?? 0,
-    };
-  }, [library.data, deleted.data]);
+    }),
+    [live, library.data, deleted.data],
+  );
+
+  // Featured: your favorites, else the most recent shots. Tapping opens the
+  // viewer scoped to just this rail.
+  const featured = useMemo(() => {
+    const favs = live.filter((p) => p.favorite);
+    return (favs.length >= 4 ? favs : live).slice(0, 12);
+  }, [live]);
+
+  const trips = useMemo(() => detectTrips(library.data ?? []), [library.data]);
+  const peopleList = useMemo(() => (people.data ?? []).filter((p) => p.count > 0).slice(0, 15), [people.data]);
 
   function newAlbum() {
     Alert.prompt?.('New Album', 'Name your album', async (name?: string) => {
@@ -42,37 +74,113 @@ export default function AlbumsScreen() {
     });
   }
 
+  function openFeatured(photo: PhotoRecord) {
+    setViewerList(featured);
+    router.push({ pathname: '/photo/[id]', params: { id: photo.id } });
+  }
+
   const mediaTypes: { key: string; label: string; icon: keyof typeof MaterialIcons.glyphMap; count: number }[] = [
     { key: 'videos', label: 'Videos', icon: 'videocam', count: counts.videos },
     { key: 'portraits', label: 'Portraits', icon: 'portrait', count: counts.portraits },
     { key: 'screenshots', label: 'Screenshots', icon: 'smartphone', count: counts.screenshots },
     { key: 'panoramas', label: 'Panoramas', icon: 'panorama-horizontal', count: counts.panoramas },
     { key: 'live', label: 'Live Photos', icon: 'motion-photos-on', count: counts.livePhotos },
-    { key: 'favorites', label: 'Favorites', icon: 'favorite', count: (library.data ?? []).filter((p) => p.favorite).length },
+    { key: 'favorites', label: 'Favorites', icon: 'favorite', count: counts.favorites },
   ];
 
   if (loading) {
     return (
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
-        <BrandLoader label="Loading your albums…" />
+        <BrandLoader label="Loading your collections…" />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: t.colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: t.spacing.lg, gap: t.spacing.xl, paddingBottom: t.spacing.xxl }} showsVerticalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text variant="headline">Albums</Text>
+      <ScrollView contentContainerStyle={{ paddingVertical: t.spacing.lg, gap: t.spacing.xl, paddingBottom: t.spacing.xxl }} showsVerticalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: t.spacing.lg }}>
+          <Text variant="headline">Collections</Text>
           <Pressable onPress={newAlbum} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <MaterialIcons name="add" size={22} color={t.colors.primaryContainer} />
             <Text variant="titleSmall" color={t.colors.primaryContainer}>New</Text>
           </Pressable>
         </View>
 
+        {/* Featured */}
+        {featured.length > 0 ? (
+          <View style={{ gap: t.spacing.md }}>
+            <SectionHead title="Featured Photos" />
+            <FlatList
+              horizontal
+              data={featured}
+              keyExtractor={(p) => p.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
+              renderItem={({ item }) => (
+                <Pressable onPress={() => openFeatured(item)}>
+                  <View style={{ width: 260, height: 190, borderRadius: t.radius.lg, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
+                    <RemoteThumb photoId={item.id} displaySize={280} style={{ width: '100%', height: '100%' }} />
+                  </View>
+                </Pressable>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {/* People */}
+        {peopleList.length > 0 ? (
+          <View style={{ gap: t.spacing.md }}>
+            <SectionHead title="People" onPress={() => router.push('/people')} />
+            <FlatList
+              horizontal
+              data={peopleList}
+              keyExtractor={(p) => p.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => router.push({ pathname: '/people/[id]', params: { id: item.id, name: item.name ?? 'Person' } })}
+                  style={{ alignItems: 'center', width: 84 }}
+                >
+                  <FaceThumb photoId={item.coverPhotoId} face={item.coverFace} size={80} bg={t.colors.surfaceContainerHigh} />
+                  <Text variant="caption" numberOfLines={1} style={{ marginTop: 5, maxWidth: 84, textAlign: 'center' }}>
+                    {item.name ?? 'Add Name'}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {/* Trips */}
+        {trips.length > 0 ? (
+          <View style={{ gap: t.spacing.md }}>
+            <SectionHead title="Trips" onPress={() => router.push('/trips')} />
+            <FlatList
+              horizontal
+              data={trips.slice(0, 12)}
+              keyExtractor={(tr) => tr.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: t.spacing.lg, gap: t.spacing.md }}
+              renderItem={({ item }) => (
+                <Pressable onPress={() => router.push({ pathname: '/trip/[id]', params: { id: item.id } })}>
+                  <View style={{ width: 220, height: 150, borderRadius: t.radius.lg, overflow: 'hidden', backgroundColor: t.colors.surfaceContainerHigh }}>
+                    <RemoteThumb photoId={item.cover.id} displaySize={240} style={{ width: '100%', height: '100%' }} />
+                    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 10, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+                      <Text variant="titleSmall" color="#fff" numberOfLines={1}>{tripTitle(item)}</Text>
+                      <Text variant="caption" color="rgba(255,255,255,0.85)">{item.photos.length} items</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              )}
+            />
+          </View>
+        ) : null}
+
         {/* My Albums */}
-        <View style={{ gap: t.spacing.md }}>
-          <Text variant="title">My Albums</Text>
+        <View style={{ gap: t.spacing.md, paddingHorizontal: t.spacing.lg }}>
+          <SectionHead title="Albums" flush />
           {(albums.data ?? []).length === 0 ? (
             <Card style={{ alignItems: 'center', paddingVertical: t.spacing.xl, gap: 6 }}>
               <MaterialIcons name="photo-album" size={36} color={t.colors.outline} />
@@ -88,8 +196,8 @@ export default function AlbumsScreen() {
         </View>
 
         {/* Media Types */}
-        <View style={{ gap: t.spacing.md }}>
-          <Text variant="title">Media Types</Text>
+        <View style={{ gap: t.spacing.md, paddingHorizontal: t.spacing.lg }}>
+          <SectionHead title="Media Types" flush />
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             {mediaTypes.map((m, i) => (
               <View key={m.key}>
@@ -108,9 +216,11 @@ export default function AlbumsScreen() {
         </View>
 
         {/* Utilities */}
-        <View style={{ gap: t.spacing.md }}>
-          <Text variant="title">Utilities</Text>
+        <View style={{ gap: t.spacing.md, paddingHorizontal: t.spacing.lg }}>
+          <SectionHead title="Utilities" flush />
           <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <UtilRow icon="content-copy" label="Duplicates" onPress={() => router.push('/duplicates')} />
+            <Divider />
             <UtilRow icon="visibility-off" label="Hidden" count={counts.hidden} locked onPress={() => router.push('/hidden')} />
             <Divider />
             <UtilRow icon="lock-outline" label="Locked" locked onPress={() => router.push('/locked')} />
@@ -120,6 +230,20 @@ export default function AlbumsScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SectionHead({ title, onPress, flush }: { title: string; onPress?: () => void; flush?: boolean }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: flush ? 0 : t.spacing.lg }}
+    >
+      <Text variant="title">{title}</Text>
+      {onPress ? <MaterialIcons name="chevron-right" size={22} color={t.colors.onSurfaceVariant} /> : null}
+    </Pressable>
   );
 }
 
