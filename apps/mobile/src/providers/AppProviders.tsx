@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NookClient, NookClientProvider } from '@nook/core';
 import { useAuth } from '@/store/auth';
 import { ThemeProvider } from '@/theme';
+import { AppLockGate } from '@/components/AppLockGate';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,7 +36,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <NookClientProvider client={client}>
-            <ThemeProvider>{children}</ThemeProvider>
+            <ThemeProvider>
+              <AppLockGate>{children}</AppLockGate>
+            </ThemeProvider>
           </NookClientProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

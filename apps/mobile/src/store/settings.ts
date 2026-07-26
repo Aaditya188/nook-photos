@@ -25,6 +25,8 @@ export interface AppPrefs {
   autoplayVideos: boolean;
   /** Accent color hex, or null for the default (green). */
   accent: string | null;
+  /** Require Face ID / passcode to open the app. */
+  appLock: boolean;
 }
 
 interface SettingsState {
@@ -51,6 +53,7 @@ const DEFAULT_PREFS: AppPrefs = {
   confirmDelete: false,
   autoplayVideos: true,
   accent: null,
+  appLock: false,
 };
 
 function clampColumns(n: unknown): number {

@@ -151,6 +151,8 @@ export default function ProfileScreen() {
           <PrefToggle icon="delete-outline" label="Confirm before deleting" value={prefs.confirmDelete} onChange={(v) => setPref('confirmDelete', v)} />
           <Divider />
           <PrefToggle icon="play-circle-outline" label="Autoplay videos" value={prefs.autoplayVideos} onChange={(v) => setPref('autoplayVideos', v)} />
+          <Divider />
+          <PrefToggle icon="lock-outline" label="Require Face ID / passcode" value={prefs.appLock} onChange={(v) => setPref('appLock', v)} />
         </Card>
       </View>
 
