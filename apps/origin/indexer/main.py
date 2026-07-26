@@ -63,7 +63,7 @@ except Exception as _e:
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from store import Store
-from models import load_models
+from models import ModelHub
 from pipeline import Pipeline
 
 DATA_DIR = os.environ.get("NOOK_DATA_DIR") or os.path.join(os.path.dirname(__file__), "..", "data")
@@ -74,44 +74,46 @@ SECRET = os.environ.get("NOOK_INDEXER_SECRET", "nook-indexer-dev")
 ENABLE_CLIP = os.environ.get("NOOK_ENABLE_CLIP", "1") != "0"
 ENABLE_FACES = os.environ.get("NOOK_ENABLE_FACES", "1") != "0"
 POLL_SEC = int(os.environ.get("NOOK_INDEX_POLL_SEC", "15"))
+# Release the GPU models after this many idle seconds (no indexing / no search), so a
+# mostly-caught-up library doesn't pin VRAM the whole time the service is up.
+IDLE_UNLOAD_SEC = int(os.environ.get("NOOK_IDLE_UNLOAD_SEC", "180"))
 
 # Heavy state is created in _init() (called only from the real __main__) so a
 # spawned worker re-importing this module never re-runs it.
 STORE = None
-CLIP = None
-FACES = None
-PLACES = None
+HUB = None
 PIPE = None
 
 
 def _capabilities() -> dict:
-    """What this host can actually do right now, for /health. `search` is true when a
-    text query can return anything at all — place labels match without CLIP."""
+    """What this host can actually do, for /health. Reports model AVAILABILITY (enabled
+    and not permanently failed), not whether it's resident this instant — the hub loads
+    lazily and unloads when idle, and /health must stay stable across that. `search` is
+    true when a text query can return anything at all — place labels match without CLIP."""
     return {
-        "clip": CLIP is not None,
-        "faces": FACES is not None,
-        "places": PLACES is not None,
-        "semanticSearch": CLIP is not None,
-        "search": CLIP is not None or PLACES is not None,
+        "clip": HUB.available_clip(),
+        "faces": HUB.available_faces(),
+        "places": HUB.places is not None,
+        "semanticSearch": HUB.available_clip(),
+        "search": HUB.available_clip() or HUB.places is not None,
     }
 
 
 def _init():
-    global STORE, CLIP, FACES, PLACES, PIPE
+    global STORE, HUB, PIPE
     os.makedirs(INDEX_DIR, exist_ok=True)
     print(f"[nook-indexer] data={DATA_DIR} index={INDEX_DIR} port={PORT} "
-          f"clip={ENABLE_CLIP} faces={ENABLE_FACES}", flush=True)
+          f"clip={ENABLE_CLIP} faces={ENABLE_FACES} idle_unload={IDLE_UNLOAD_SEC}s", flush=True)
     STORE = Store(os.path.join(INDEX_DIR, "ai-index.sqlite"))
-    CLIP, FACES, PLACES = load_models(enable_clip=ENABLE_CLIP, enable_faces=ENABLE_FACES)
-    # Which models produced the stored vectors? Must run after the models are up (their
-    # fingerprints are the input) and before the pipeline starts (it works off the
-    # re-index queue this may fill). A kind that isn't loaded this boot passes None and
-    # is left untouched — a disabled model must not invalidate its own vectors.
-    STORE.sync_model_fingerprints({
-        "clip": CLIP.fingerprint if CLIP is not None else None,
-        "face": FACES.fingerprint if FACES is not None else None,
-    })
-    PIPE = Pipeline(DATA_DIR, STORE, CLIP, FACES, PLACES, poll_interval=POLL_SEC)
+    # The hub loads CLIP/faces lazily (only while indexing/searching) and frees them
+    # when idle; Places is CPU-only and stays resident.
+    HUB = ModelHub(enable_clip=ENABLE_CLIP, enable_faces=ENABLE_FACES,
+                   idle_unload_sec=IDLE_UNLOAD_SEC)
+    # Which models produced the stored vectors? Fingerprints are static (no model load
+    # needed), so this stays cheap. A disabled kind passes None and is left untouched —
+    # a disabled model must not invalidate its own vectors.
+    STORE.sync_model_fingerprints(HUB.fingerprints())
+    PIPE = Pipeline(DATA_DIR, STORE, HUB, poll_interval=POLL_SEC, index_dir=INDEX_DIR)
     PIPE.start()
 
 
@@ -170,8 +172,8 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True, "faces": caps["faces"], "places": caps["places"],
                 "clip": caps["clip"], "capabilities": caps,
                 "providers": {
-                    "clip": getattr(CLIP, "provider", None),
-                    "faces": getattr(FACES, "provider", None),
+                    "clip": HUB.clip_provider,
+                    "faces": HUB.faces_provider,
                 },
                 "models": STORE.model_state(),
                 "counts": STORE.counts(), "status": PIPE.status, "prune": PIPE.prune,
@@ -201,14 +203,17 @@ class Handler(BaseHTTPRequestHandler):
             uid = body.get("userId", "_")
             limit = int(body.get("limit", 60))
             if not q:
-                return self._send(200, {"results": [], "semantic": CLIP is not None})
+                return self._send(200, {"results": [], "semantic": HUB.available_clip()})
             # No CLIP on this host → no query vector. Search still runs: store.search
             # matches place labels, so "paris" works and anything else comes back empty
             # instead of 500-ing. `semantic` tells the caller which kind of answer it is.
+            # get_clip() lazily loads the model (a few seconds the first time after an
+            # idle unload) and stamps last-use so it isn't unloaded out from under us.
             qvec = None
-            if CLIP is not None:
+            clip = HUB.get_clip()
+            if clip is not None:
                 try:
-                    qvec = CLIP.embed_text(q)
+                    qvec = clip.embed_text(q)
                 except Exception as e:
                     print("[nook-indexer] text embed failed:", e, flush=True)
             return self._send(200, {

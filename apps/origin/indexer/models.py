@@ -9,6 +9,10 @@ Which accelerator is reachable is decided at INSTALL time, not here: every ONNX
 Runtime flavour is a separate PyPI distribution (see requirements.txt), so all this
 module can do is ask the installed runtime what it has and pick the best of it.
 """
+import gc
+import threading
+import time
+
 import numpy as np
 
 # Conservative CUDA execution-provider options. onnxruntime's defaults
@@ -302,6 +306,118 @@ def load_models(enable_clip: bool = True, enable_faces: bool = True):
     except Exception as e:
         print("[models] places DISABLED:", e, flush=True)
     return clip, faces, places
+
+
+class ModelHub:
+    """Lazily loads CLIP + faces and RELEASES them (freeing GPU memory) after an idle
+    period, so the indexer only occupies the GPU while it is actually working — not
+    for the whole time the service is up. Places is tiny and CPU-only, so it stays
+    resident. Thread-safe: the pipeline thread (indexing) and the HTTP handler threads
+    (search) share one hub.
+
+    Availability vs. loaded: `available_*` reports whether a model is ENABLED and hasn't
+    permanently failed — it does not care whether the model is resident right now, so
+    /health (and therefore the app's People/search affordances) stays stable across
+    idle unloads. `get_*` is what actually loads on demand and stamps last-use.
+    """
+
+    def __init__(self, enable_clip: bool = True, enable_faces: bool = True,
+                 idle_unload_sec: int = 180):
+        self._enable_clip = enable_clip
+        self._enable_faces = enable_faces
+        self.idle_unload_sec = max(30, int(idle_unload_sec))
+        self._lock = threading.RLock()
+        self._clip = None
+        self._faces = None
+        self._clip_failed = False
+        self._faces_failed = False
+        self._clip_provider = None
+        self._faces_provider = None
+        self._last_used = 0.0
+        print(f"[models] onnxruntime providers: {available_providers() or '(none)'}", flush=True)
+        self.places = None
+        try:
+            self.places = Places()
+            print("[models] places enabled (reverse_geocoder)", flush=True)
+        except Exception as e:
+            print("[models] places DISABLED:", e, flush=True)
+        print(f"[modelhub] lazy models: clip={enable_clip} faces={enable_faces} "
+              f"idle_unload={self.idle_unload_sec}s", flush=True)
+
+    def available_clip(self) -> bool:
+        return self._enable_clip and not self._clip_failed
+
+    def available_faces(self) -> bool:
+        return self._enable_faces and not self._faces_failed
+
+    def fingerprints(self) -> dict:
+        """Static identity of the models — safe to call WITHOUT loading them, so the
+        index's fingerprint bookkeeping doesn't force a load at boot."""
+        return {
+            "clip": clip_fingerprint() if self._enable_clip else None,
+            "face": face_fingerprint() if self._enable_faces else None,
+        }
+
+    def get_clip(self):
+        if not self._enable_clip or self._clip_failed:
+            return None
+        with self._lock:
+            if self._clip is None:
+                try:
+                    self._clip = Clip()
+                    self._clip_provider = self._clip.provider
+                    print(f"[modelhub] CLIP loaded on {self._clip.provider} "
+                          f"[{self._clip.fingerprint}]", flush=True)
+                except Exception as e:
+                    self._clip_failed = True
+                    print("[modelhub] CLIP load failed, disabling:", e, flush=True)
+                    return None
+            self._last_used = time.time()
+            return self._clip
+
+    def get_faces(self):
+        if not self._enable_faces or self._faces_failed:
+            return None
+        with self._lock:
+            if self._faces is None:
+                try:
+                    self._faces = Faces()
+                    self._faces_provider = self._faces.provider
+                    print(f"[modelhub] faces loaded on {self._faces.provider} "
+                          f"[{self._faces.fingerprint}]", flush=True)
+                except Exception as e:
+                    self._faces_failed = True
+                    print("[modelhub] faces load failed, disabling:", e, flush=True)
+                    return None
+            self._last_used = time.time()
+            return self._faces
+
+    def loaded(self) -> bool:
+        return self._clip is not None or self._faces is not None
+
+    def maybe_unload(self, force: bool = False) -> bool:
+        """Release the GPU models if they've been idle long enough. A search or index
+        that grabbed a model keeps its own reference alive until it's done, so this
+        never yanks a model out from under active work — it only drops the hub's
+        reference; the CUDA arena frees once the last user lets go."""
+        with self._lock:
+            if not self.loaded():
+                return False
+            if not force and (time.time() - self._last_used) < self.idle_unload_sec:
+                return False
+            self._clip = None
+            self._faces = None
+        gc.collect()
+        print("[modelhub] idle -> released models (GPU freed until next work)", flush=True)
+        return True
+
+    @property
+    def clip_provider(self):
+        return self._clip_provider
+
+    @property
+    def faces_provider(self):
+        return self._faces_provider
 
 
 def load_bgr(path: str):

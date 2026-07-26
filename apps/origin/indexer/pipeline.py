@@ -24,17 +24,21 @@ FACE_MIN_SIZE = float(os.environ.get("NOOK_FACE_MIN_SIZE", "0.05"))
 
 
 class Pipeline:
-    def __init__(self, data_dir, store, clip, faces, places, poll_interval=15):
+    def __init__(self, data_dir, store, hub, poll_interval=15, index_dir=None):
         self.data_dir = data_dir
         self.db_path = os.path.join(data_dir, "db.json")
         self.thumbs = os.path.join(data_dir, "thumbs")
         self.store = store
-        self.clip = clip
-        self.faces = faces
-        self.places = places
+        self.hub = hub          # lazy model hub: GPU models load on demand, free when idle
+        self.places = hub.places  # tiny + CPU-only, always resident
         self.poll_interval = poll_interval
         self._stop = threading.Event()
-        self._dirty = False  # new faces added since the last authoritative recluster
+        # A persisted marker: set the moment faces change, cleared once an authoritative
+        # recluster has run. On boot we recluster ONLY if it's still set (a prior run was
+        # killed mid-index) — otherwise the grouping already stored is correct and the
+        # expensive O(n^2) recluster is skipped entirely.
+        self._dirty_path = os.path.join(index_dir or os.path.join(data_dir, "ai"), "faces.dirty")
+        self._dirty = os.path.exists(self._dirty_path)
         self._maint = threading.Lock()  # one face-quality maintenance pass at a time
         self.status = {"indexing": False, "done": 0, "pending": 0, "last_error": ""}
         # Progress + outcome of the background face-quality prune, so a caller polls
@@ -59,15 +63,38 @@ class Pipeline:
         except Exception:
             return {"photos": []}
 
+    def _set_dirty(self, value):
+        """Persist (or clear) the 'faces changed, recluster pending' marker."""
+        self._dirty = value
+        try:
+            if value:
+                open(self._dirty_path, "w").close()
+            elif os.path.exists(self._dirty_path):
+                os.remove(self._dirty_path)
+        except Exception:
+            pass  # best-effort; in-memory _dirty still drives this session
+
     def _loop(self):
         self._stop.wait(2)  # let the server bind first
-        self._recluster_all()  # collapse duplicate people left by any prior index run
+        # Recluster on boot ONLY if a prior run left faces un-grouped (marker present).
+        # A clean shutdown clears it, so ordinary restarts skip the O(n^2) full pass and
+        # its CPU spike; new photos still get an authoritative recluster when the queue
+        # next drains.
+        if self._dirty:
+            print("[pipeline] pending regroup from a prior run -> reclustering", flush=True)
+            self._recluster_all()
+            self._set_dirty(False)
         while not self._stop.is_set():
             try:
                 self._tick()
             except Exception as e:
                 self.status["last_error"] = str(e)
                 print("[pipeline] error:", e, flush=True)
+            # Release the GPU models once indexing has been idle long enough.
+            try:
+                self.hub.maybe_unload()
+            except Exception:
+                pass
             self._stop.wait(self.poll_interval)
 
     def _recluster_all(self):
@@ -104,7 +131,7 @@ class Pipeline:
             # Removing faces changes the grouping, so ask for one authoritative
             # recluster when the queue next drains. Without this, People keeps the
             # membership it computed while the now-hidden faces were still present.
-            self._dirty = True
+            self._set_dirty(True)
 
         todo = [p for p in live if p["id"] not in indexed]
         self.status["pending"] = len(todo)
@@ -115,7 +142,7 @@ class Pipeline:
             # authoritative agglomerative recluster once (not per-sweep — it's O(n^2)).
             if self._dirty:
                 self._recluster_all()
-                self._dirty = False
+                self._set_dirty(False)
             return
         self.status["indexing"] = True
         for p in todo:
@@ -124,7 +151,7 @@ class Pipeline:
             self._index_photo(p)
             self.status["done"] += 1
             self.status["pending"] = len(todo) - self.status["done"] if False else max(0, self.status["pending"] - 1)
-        self._dirty = True
+        self._set_dirty(True)
         self.status["indexing"] = False
         self._commit_migrations()
 
@@ -143,7 +170,7 @@ class Pipeline:
         if "face" in self.store.commit_pending_fingerprints():
             print("[pipeline] face model migration finished, regrouping people", flush=True)
             self._recluster_all()
-            self._dirty = False
+            self._set_dirty(False)
 
     def start_prune(self) -> bool:
         """Begin a face-quality prune on a background thread. False if one is running.
@@ -299,17 +326,21 @@ class Pipeline:
             self.store.mark(pid, "skipped", "no thumb")
             return
         try:
-            if self.clip is not None:
-                vec = self.clip.embed_image(thumb)
+            # Lazy: the models load on the first photo of a run and are released by the
+            # hub once indexing goes idle (see _loop). Cheap after the first call.
+            clip = self.hub.get_clip()
+            face_model = self.hub.get_faces()
+            if clip is not None:
+                vec = clip.embed_image(thumb)
                 if vec is not None:
                     self.store.add_clip(pid, uid, vec)
 
-            if self.faces is not None:
+            if face_model is not None:
                 bgr = load_bgr(thumb)
                 kept = []
                 if bgr is not None:
                     ih, iw = bgr.shape[0], bgr.shape[1]
-                    faces = self.faces.detect(bgr)
+                    faces = face_model.detect(bgr)
                     for f in faces:
                         x1, y1, x2, y2 = f["bbox"]
                         bw = max(0.0, (x2 - x1) / iw)
