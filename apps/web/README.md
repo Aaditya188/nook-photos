@@ -1,4 +1,4 @@
-# `apps/web` — the web dashboard
+# `apps/web`, the web dashboard
 
 React 19 + Vite + react-router + TanStack Query. Built to `apps/web/dist`, which the gateway
 (`apps/server`) serves at `/`.
@@ -23,7 +23,7 @@ The dev server needs the gateway running on `:8090`.
 src/App.tsx            routes + chrome
 src/components/        PhotoGrid (virtual scroller), Lightbox, Editor, Tile, Upload…
 src/views/             one file per route (Settings, MapView, Trips, Onboarding…)
-src/state/             auth / UI / view contexts — URL is the source of truth
+src/state/             auth / UI / view contexts, URL is the source of truth
 src/hooks/             useScrollLock, useGridZoom, useStickyHeights…
 src/lib/               blobCache, icons, format, upload, unzip
 src/styles.css         all styling, CSS variables, html[data-theme]
@@ -38,14 +38,14 @@ src/styles.css         all styling, CSS variables, html[data-theme]
 3. Chunks near the viewport render real tiles; the rest collapse to a `<div>` of **exactly** their
    computed height.
 
-That last point is the invariant everything rests on: **chunk heights must stay analytic** —
+That last point is the invariant everything rests on: **chunk heights must stay analytic** -
 computable from the data without rendering. That's what keeps total document height, scroll
 position, and scrollbar size correct at any library size. If a layout change makes a chunk's height
 depend on measuring rendered content, scrolling breaks in ways that are very hard to diagnose.
 
 The visible range is computed two ways on purpose: a fast `getBoundingClientRect()` scan of attached
 chunks, and an **analytic fallback** derived from `window.scrollY` plus cumulative chunk heights.
-The fallback isn't a rare safety net — React nulls callback refs during the mutation phase, so it
+The fallback isn't a rare safety net, React nulls callback refs during the mutation phase, so it
 runs on every viewer close.
 
 ## Conventions
@@ -65,10 +65,10 @@ runs on every viewer close.
 
 - **Never use `requestAnimationFrame` or `IntersectionObserver` for scroll-critical logic.** Both
   are paused in embedded webviews, which silently freezes virtualization. Use timestamp-throttled
-  scroll listeners. (Lazy *image* loading via IntersectionObserver is fine — that's `Tile.tsx`.)
+  scroll listeners. (Lazy *image* loading via IntersectionObserver is fine, that's `Tile.tsx`.)
 - **Modals must lock scroll via `useScrollLock`**, not by toggling a class themselves.
   `overflow: hidden` alone makes the browser clamp `scrollY` to 0 and never restore it, and it also
-  removes the scrollbar — which changes the grid's width and rebuilds every chunk. The hook saves
+  removes the scrollbar, which changes the grid's width and rebuilds every chunk. The hook saves
   and restores the offset and pads by a measured `--scroll-lock-gutter` so width stays identical.
 - **Don't declare the same CSS selector twice.** A duplicate `.up-menu-item` rule once reset
   `display: flex` to `block`, silently killing a `gap` and welding icons to their labels.

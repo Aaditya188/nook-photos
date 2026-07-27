@@ -1,4 +1,4 @@
-# `apps/server` — the performance gateway
+# `apps/server`, the performance gateway
 
 Fastify + [sharp](https://sharp.pixelplumbing.com/) in front of the origin store. Everything a
 browser or phone talks to goes through here on **port 8090**; the origin (`apps/origin`, port 8080)
@@ -47,8 +47,8 @@ registers it as a Windows service.
 |---|---|---|
 | `NOOK_GATEWAY_PORT` | `8090` | listen port |
 | `NOOK_ORIGIN` | `http://127.0.0.1:8080` | origin base URL |
-| `NOOK_WEB_DIST` | — | serve the dashboard from a custom directory |
-| `NOOK_DATA_DIR` | — | where caches and `edits.json` live |
+| `NOOK_WEB_DIST` |, | serve the dashboard from a custom directory |
+| `NOOK_DATA_DIR` |, | where caches and `edits.json` live |
 | `LOG_LEVEL` | `info` | pino level |
 
 **There is no fallback dashboard.** If no build is found, `/` 404s, the API keeps working, and
@@ -59,11 +59,11 @@ standing in for the real one is worse than an honest 404.
 
 - **Media auth accepts `?token=`.** `<img>` and `<video>` can't send an `Authorization` header, so
   media requests may carry the token in the query string. The request logger **redacts** it
-  (`redactUrl` in `src/index.ts`) — never remove that, and never add a second place that logs a raw
+  (`redactUrl` in `src/index.ts`), never remove that, and never add a second place that logs a raw
   URL. Authed media responses are `Cache-Control: private` so a CDN edge can't store them.
 - **The `'*'` content parser doesn't cover JSON.** The gateway registers a passthrough parser so
   uploads stream through unparsed, but Fastify's built-in JSON parser still handles
-  `application/json` — a route handler may receive **an object or a stream**.
+  `application/json`, a route handler may receive **an object or a stream**.
 - **sharp on Windows may lack HEIF**, so HEIC decoding goes through `heic-convert` in
   [`src/thumbs.ts`](src/thumbs.ts) rather than sharp.
 - **Edit recipe order matters** and mirrors the client preview exactly: EXIF auto-orient → rotate →

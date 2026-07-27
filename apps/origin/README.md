@@ -1,11 +1,11 @@
-# Nook Photos server (v2 — accounts)
+# Nook Photos server (v2, accounts)
 
 Zero-dependency Node.js (>= 16) file server for the Nook Photos backup box.
 Implements the API contract in [`../docs/API.md`](../docs/API.md) using only
-`http`, `fs`, `path`, `crypto`, and `os` — no npm install, no `express`, no
+`http`, `fs`, `path`, `crypto`, and `os`, no npm install, no `express`, no
 global `fetch`, no `node:sqlite`.
 
-Auth is **per-user with bearer tokens** — there is no shared key. The server
+Auth is **per-user with bearer tokens**: there is no shared key. The server
 starts **unclaimed**: the first account created via `POST /api/setup` becomes the
 admin, after which setup is closed. Every user sees only their own photos and
 albums.
@@ -41,7 +41,7 @@ curl http://127.0.0.1:8080/api/library -H 'Authorization: Bearer <bearer>'
 
 ## Environment variables
 
-All optional — sensible auto-detection, never a user-identity default.
+All optional, sensible auto-detection, never a user-identity default.
 
 | Variable                   | Default                                         | Purpose                                    |
 |----------------------------|-------------------------------------------------|--------------------------------------------|
@@ -51,7 +51,7 @@ All optional — sensible auto-detection, never a user-identity default.
 | `NOOK_STORAGE_TOTAL_BYTES` | free+used of the data disk (`statfs`), else 1 TB | Capacity to report in `/api/status`        |
 | `NOOK_DATA_DIR`            | `./data`                                         | Where `db.json`, originals, and thumbs live|
 
-There is **no** `NOOK_KEY` in v2 — access is accounts, not a shared secret.
+There is **no** `NOOK_KEY` in v2, access is accounts, not a shared secret.
 
 Each request is logged as one line: `METHOD /path STATUS ms`.
 
@@ -83,13 +83,13 @@ server/
   server.js          # the whole server
   public/            # web dashboard (static, served at /; SPA fallback to index.html)
   data/              # runtime state (path overridable via NOOK_DATA_DIR)
-    db.json          # {users, tokens, photos, albums} — rewritten atomically on every mutation
+    db.json          # {users, tokens, photos, albums}, rewritten atomically on every mutation
     originals/<id>   # raw uploaded bytes, stored verbatim (Content-Type kept in the record)
     thumbs/<id>.jpg  # client-generated JPEG thumbnails
 ```
 
 `db.json` is the only index. Every photo and album carries a `userId`; queries,
-uploads, downloads, and mutations are scoped to the caller — another user's
+uploads, downloads, and mutations are scoped to the caller, another user's
 record reads as `404`. Uploads and `db.json` writes go through a temp-file +
 rename so a power cut on the Pi never leaves a torn file.
 

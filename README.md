@@ -5,7 +5,7 @@
 <h1 align="center">Nook Photos</h1>
 
 <p align="center">
-  <b>Your own private Google Photos — self-hosted, open source, and running on hardware you own.</b><br>
+  <b>Your own private Google Photos, self-hosted, open source, and running on hardware you own.</b><br>
   An iPhone &amp; Android app for automatic backup, a fast web dashboard for browsing, and an optional AI indexer for semantic search, faces &amp; places. Nothing ever leaves your box.
 </p>
 
@@ -22,14 +22,14 @@
 
 ## Why Nook?
 
-Cloud photo services are convenient until they aren't: monthly fees, quiet privacy trade-offs, and your memories living on someone else's computer. **Nook Photos** gives you the same experience — auto-backup from your phone, a beautiful gallery, search, People, Places, albums, sharing — but every byte stays on your own machine. Point the app at your server once, and it just works.
+Cloud photo services are convenient until they aren't: monthly fees, quiet privacy trade-offs, and your memories living on someone else's computer. **Nook Photos** gives you the same experience: auto-backup from your phone, a beautiful gallery, search, People, Places, albums, and sharing. The difference is that every byte stays on your own machine. Point the app at your server once, and it just works.
 
-- 🔒 **Private by design** — your photos and metadata never leave your hardware. No accounts with anyone but you.
-- 📱 **Real apps, not just a web page** — native iOS &amp; Android app (Expo) with automatic, resumable background-style backup.
-- ⚡ **Fast at any size** — a virtualized gallery that stays smooth in a 50k-photo library; on-the-fly sized thumbnails; chunked video streaming.
-- 🧠 **Optional on-device AI** — semantic search ("beach sunset"), automatic **People** grouping, **Places** from GPS, OCR text search, and duplicate detection — all computed locally, GPU-accelerated when available.
-- 🗂️ **Your files stay yours** — storage is plain files + one `db.json`. No proprietary database; copy the folder and you've got a backup.
-- 🆓 **Free &amp; MIT-licensed** — fork it, run it, change it.
+- 🔒 **Private by design**: your photos and metadata never leave your hardware. No accounts with anyone but you.
+- 📱 **Real apps, not just a web page**: native iOS &amp; Android app (Expo) with automatic, resumable background-style backup.
+- ⚡ **Fast at any size**: a virtualized gallery that stays smooth in a 50k-photo library; on-the-fly sized thumbnails; chunked video streaming.
+- 🧠 **Optional on-device AI**: semantic search ("beach sunset"), automatic **People** grouping, **Places** from GPS, OCR text search, and duplicate detection. It all runs locally, GPU-accelerated when available.
+- 🗂️ **Your files stay yours**: storage is plain files + one `db.json`. No proprietary database; copy the folder and you've got a backup.
+- 🆓 **Free &amp; MIT-licensed**: fork it, run it, change it.
 
 ## Table of contents
 
@@ -42,7 +42,7 @@ Cloud photo services are convenient until they aren't: monthly fees, quiet priva
 
 **Capture &amp; sync**
 - Automatic phone → server backup: diffs against what the server already has and uploads only what's new (metadata → thumbnail → original), tolerant of per-item failures and resumable.
-- Live Photos (still + motion), HEIC, videos, panoramas, screenshots — all preserved with EXIF &amp; GPS.
+- Live Photos (still + motion), HEIC, videos, panoramas, screenshots, all preserved with EXIF &amp; GPS.
 - "Free up space" that only deletes local copies **after** verifying they're safely on the server.
 
 **Browse &amp; relive**
@@ -88,10 +88,10 @@ An npm-workspaces monorepo:
 | Package | What it is |
 |---|---|
 | [`packages/core`](packages/core) | Framework-agnostic TypeScript shared by every client: a typed `NookClient` for the full API, data types, TanStack Query hooks, theme tokens, and helpers. No DOM/Expo imports. |
-| [`apps/mobile`](apps/mobile) | **The phone app** — Expo (SDK 54) + Expo Router (iOS &amp; Android). Backup engine, zoomable grid, immersive viewer, Collections hub, People/Places/Search, biometric app-lock, custom video player. |
-| [`apps/web`](apps/web) | **The web dashboard** — React 19 + Vite + TanStack Query. Chunked virtual scroller, authed blob thumbnail cache, progressive viewer with server-side HEIC decode, range-streamed video. |
-| [`apps/server`](apps/server) | **Performance gateway** — Fastify + sharp. Size-bucketed disk-cached thumbnails, HTTP-Range streaming, HEIC → JPEG, perceptual hashing, transparent proxy to the origin, static hosting for the web app. |
-| [`apps/origin`](apps/origin) | **Origin server** — a zero-dependency Node file server (accounts, library/albums/hidden/deleted APIs, uploads) + the optional Python **AI indexer**. Storage is plain files + one `db.json`. |
+| [`apps/mobile`](apps/mobile) | **The phone app**: Expo (SDK 54) + Expo Router (iOS &amp; Android). Backup engine, zoomable grid, immersive viewer, Collections hub, People/Places/Search, biometric app-lock, custom video player. |
+| [`apps/web`](apps/web) | **The web dashboard**: React 19 + Vite + TanStack Query. Chunked virtual scroller, authed blob thumbnail cache, progressive viewer with server-side HEIC decode, range-streamed video. |
+| [`apps/server`](apps/server) | **Performance gateway**: Fastify + sharp. Size-bucketed disk-cached thumbnails, HTTP-Range streaming, HEIC → JPEG, perceptual hashing, transparent proxy to the origin, static hosting for the web app. |
+| [`apps/origin`](apps/origin) | **Origin server**: a zero-dependency Node file server (accounts, library/albums/hidden/deleted APIs, uploads) + the optional Python **AI indexer**. Storage is plain files + one `db.json`. |
 
 ## Quick start
 
@@ -103,16 +103,16 @@ cd nook-photos
 npm install
 ```
 
-Run the three pieces (three terminals, or install them as services — see below):
+Run the three pieces (three terminals, or install them as services, see below):
 
 ```bash
-# 1) Origin — the photo store (port 8080; data in ./apps/origin/data, set NOOK_DATA_DIR to move it)
+# 1) Origin, the photo store (port 8080; data in ./apps/origin/data, set NOOK_DATA_DIR to move it)
 cd apps/origin && node server.js
 
 # 2) Build the web dashboard once
 npm run build -w @nook/web
 
-# 3) Gateway — thumbnails, streaming, and serves the web app (port 8090)
+# 3) Gateway, thumbnails, streaming, and serves the web app (port 8090)
 cd apps/server && ../../node_modules/.bin/tsx src/index.ts
 ```
 
@@ -125,7 +125,7 @@ Open **http://localhost:8090**, create your admin account, and you're live. (For
 cd apps/mobile && npx expo start   # scan the QR in Expo Go
 ```
 
-**Build a standalone app (no Expo Go):** the project ships an `eas.json`, bundle IDs, and brand icons — build with [EAS](https://docs.expo.dev/build/introduction/):
+**Build a standalone app (no Expo Go):** the project ships an `eas.json`, bundle IDs, and brand icons, build with [EAS](https://docs.expo.dev/build/introduction/):
 
 ```bash
 cd apps/mobile
@@ -138,7 +138,7 @@ On first launch, point the app at your server URL, test the connection, and sign
 
 ## Optional AI indexer
 
-A Python sidecar the origin auto-detects on :8091. **Entirely optional** — without it you still get thumbnails, albums, dates, and browsing. With it: semantic search, People, Places, OCR.
+A Python sidecar the origin auto-detects on :8091. **Entirely optional**: without it you still get thumbnails, albums, dates, and browsing. With it: semantic search, People, Places, OCR.
 
 ```bash
 cd apps/origin/indexer
@@ -153,15 +153,15 @@ Requires **Python 3.11+**. `pip install -r requirements.txt` is the portable CPU
 | NVIDIA (Linux/Windows x86_64) | `pip install --force-reinstall --no-deps -r requirements-gpu.txt` |
 | Windows + Intel/AMD GPU | `pip install --force-reinstall --no-deps onnxruntime-directml==1.24.4` |
 | Intel CPU/iGPU | `pip install --force-reinstall --no-deps onnxruntime-openvino==1.24.1` |
-| Apple Silicon | nothing — CoreML is in the portable install |
-| Raspberry Pi / aarch64 | nothing — CPU only |
+| Apple Silicon | nothing, CoreML is in the portable install |
+| Raspberry Pi / aarch64 | nothing, CPU only |
 
 The indexer picks the best provider at startup (CUDA > DirectML > CoreML > OpenVINO > CPU), loads models **lazily** and frees the GPU when idle, and reports live capabilities at `curl localhost:8091/health`. On slow hardware, set `NOOK_ENABLE_FACES=0` (face detection is the heaviest stage); toggle it back on later and the indexer backfills automatically.
 
 ## Keep it always-on &amp; reach it anywhere
 
-1. **Run as a service** — `apps/origin/install-services.ps1` + `apps/server/install-gateway-service.ps1` register everything as auto-start Windows services (macOS: LaunchAgents; Linux: systemd units the setup script prints).
-2. **Access from anywhere (optional)** — a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) gives the gateway a public HTTPS hostname with no port-forwarding: `cloudflared tunnel create nook`, route a DNS name, point the ingress at `http://localhost:8090`.
+1. **Run as a service**: `apps/origin/install-services.ps1` + `apps/server/install-gateway-service.ps1` register everything as auto-start Windows services (macOS: LaunchAgents; Linux: systemd units the setup script prints).
+2. **Access from anywhere (optional)**: a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) gives the gateway a public HTTPS hostname with no port-forwarding: `cloudflared tunnel create nook`, route a DNS name, point the ingress at `http://localhost:8090`.
 
 ## Contributing
 
@@ -175,4 +175,4 @@ If Nook is useful to you, a ⭐ on the repo genuinely helps others find it.
 
 ## License
 
-[MIT](LICENSE) © Aaditya Prakash — free to use, fork, and self-host.
+[MIT](LICENSE) © Aaditya Prakash. Free to use, fork, and self-host.

@@ -1,13 +1,13 @@
 # Contributing to Nook Photos
 
-Thanks for your interest in making Nook better! 🎉 Whether it's a bug report, a docs fix, or a feature — contributions of all sizes are welcome.
+Thanks for your interest in making Nook better! 🎉 Whether it's a bug report, a docs fix, or a feature, contributions of all sizes are welcome.
 
 ## Ways to contribute
 
-- 🐛 **Report a bug** — open an issue with the Bug report template.
-- 💡 **Suggest a feature** — open an issue with the Feature request template.
-- 📖 **Improve docs** — typos, clearer setup steps, screenshots.
-- 🔧 **Send a PR** — bug fixes and features (see below).
+- 🐛 **Report a bug**: open an issue with the Bug report template.
+- 💡 **Suggest a feature**: open an issue with the Feature request template.
+- 📖 **Improve docs**: typos, clearer setup steps, screenshots.
+- 🔧 **Send a PR**: bug fixes and features (see below).
 
 If you're planning a larger change, please open an issue first so we can align on the approach before you invest time.
 
@@ -33,7 +33,7 @@ cd apps/mobile && npx expo start            # mobile in Expo Go
 
 ## Project layout
 
-An npm-workspaces monorepo — see the [README table](README.md#whats-in-the-repo). In short:
+An npm-workspaces monorepo, see the [README table](README.md#whats-in-the-repo). In short:
 
 | Path | What |
 |---|---|
@@ -65,7 +65,7 @@ node --check apps/origin/server.js
 
 - **Branch off `master`**, and target your PR at `master`. CI (typecheck + build) must be green.
 - **Match the surrounding style.** The codebase favors small, well-commented modules; keep comments about the *why*.
-- **`apps/origin/server.js` is deliberately dependency-free vanilla Node** — do not add npm dependencies to the origin photo store. Its zero-supply-chain property is a feature.
+- **`apps/origin/server.js` is deliberately dependency-free vanilla Node**: do not add npm dependencies to the origin photo store. Its zero-supply-chain property is a feature.
 - **Shared logic goes in `packages/core`** so web and mobile stay in sync; `core` must not import DOM or Expo APIs (platform bits are injected).
 - **Keep it private-by-default.** Nook never phones home; don't add analytics, telemetry, or third-party network calls without discussion.
 - Write clear, imperative commit messages (e.g., "mobile: fix login form hidden behind keyboard").

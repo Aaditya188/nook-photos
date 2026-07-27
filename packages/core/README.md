@@ -1,4 +1,4 @@
-# `packages/core` — shared client library
+# `packages/core`, shared client library
 
 Framework-agnostic TypeScript shared by **both** clients (`apps/web` and `apps/mobile`). If logic
 would otherwise be written twice, it belongs here.
@@ -9,16 +9,16 @@ would otherwise be written twice, it belongs here.
 anything platform-specific is injected rather than imported:
 
 ```ts
-// storage is injected — localStorage on web, SecureStore on mobile
+// storage is injected, localStorage on web, SecureStore on mobile
 const client = new NookClient({ baseUrl, storage });
 ```
 
-Breaking this rule doesn't fail here — it fails later, in whichever client can't resolve the import.
+Breaking this rule doesn't fail here, it fails later, in whichever client can't resolve the import.
 
 ## What's inside
 
 ```
-src/api/client.ts     NookClient — one typed method per server endpoint
+src/api/client.ts     NookClient, one typed method per server endpoint
 src/api/types.ts      PhotoRecord, AlbumRecord, StatusRecord, …
 src/hooks/            TanStack Query hooks over the client
 src/lib/              trips clustering, formatting, date grouping, helpers
@@ -31,7 +31,7 @@ src/index.ts          barrel export
 1. Add or update the type in [`src/api/types.ts`](src/api/types.ts).
 2. Add one method to [`src/api/client.ts`](src/api/client.ts) returning `this.request<T>(…)`.
 3. Export it from the barrel if callers need the type.
-4. Both clients pick it up — no per-app duplication.
+4. Both clients pick it up, no per-app duplication.
 
 Keep `NookClient` a thin, honest mirror of the HTTP API: one method per endpoint, no business logic,
 no caching. Caching is the hooks' job; policy is the app's job.
@@ -51,5 +51,5 @@ build is the check that actually gates CI. This package's own `tsconfig.json` is
 
 - **Vectors and IDs are server-owned.** Don't synthesise photo or person IDs client-side; they come
   from the origin and are used as cache keys and filesystem names.
-- **`library()` is unpaginated** — it returns every non-deleted photo in one response. Fine at
+- **`library()` is unpaginated**: it returns every non-deleted photo in one response. Fine at
   ~10k photos, but be aware before adding a caller that runs on every keystroke.
