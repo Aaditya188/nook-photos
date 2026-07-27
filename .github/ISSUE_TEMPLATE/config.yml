@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Setup &amp; self-hosting help
+    url: https://github.com/Aaditya188/nook-photos#readme
+    about: Read the README for install, self-hosting, and build instructions before filing an issue.

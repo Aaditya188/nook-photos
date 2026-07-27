@@ -1,0 +1,54 @@
+name: 🐛 Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a bug! Please fill in as much as you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Tap '...'
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - Mobile app (iOS)
+        - Mobile app (Android)
+        - Web dashboard
+        - Gateway (apps/server)
+        - Origin server (apps/origin)
+        - AI indexer
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: App version (Profile) or the git commit you're running.
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS + version, device/browser, Node version, GPU (if the indexer is involved).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Relevant server logs, console errors, or screenshots. Redact anything private.
+      render: shell

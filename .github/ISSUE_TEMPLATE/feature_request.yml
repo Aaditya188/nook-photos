@@ -1,0 +1,35 @@
+name: 💡 Feature request
+description: Suggest an idea or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do, and where does Nook get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or workarounds you've thought about.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which part of Nook?
+      multiple: true
+      options:
+        - Mobile app
+        - Web dashboard
+        - Gateway / media
+        - Origin server / API
+        - AI (search / faces / places)
+        - Other
