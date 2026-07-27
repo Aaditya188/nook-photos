@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Aaditya188/nook-photos/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Aaditya188/nook-photos/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-57d38a.svg"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-iOS%20%C2%B7%20Android%20%C2%B7%20Web-0b0b0c">
   <img alt="Stack" src="https://img.shields.io/badge/stack-TypeScript%20%C2%B7%20React%20%C2%B7%20Expo%20%C2%B7%20Node-2b6cb0">

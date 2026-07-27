@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck @nook/core
+        working-directory: packages/core
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Typecheck web
+        working-directory: apps/web
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Typecheck mobile
+        working-directory: apps/mobile
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Typecheck gateway
+        working-directory: apps/server
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Syntax-check origin server (zero-dependency vanilla Node)
+        run: node --check apps/origin/server.js
+
+      - name: Build web dashboard
+        working-directory: apps/web
+        run: npx vite build

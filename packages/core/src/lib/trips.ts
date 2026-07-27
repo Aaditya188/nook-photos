@@ -87,14 +87,13 @@ export function detectTrips(photos: PhotoRecord[]): Trip[] {
   // Merge away days (sorted) across small gaps into runs.
   const days = [...awayDays].sort();
   const runs: string[][] = [];
-  let cur: string[] = [days[0]];
+  let cur: string[] = [days[0]!];
   for (let i = 1; i < days.length; i++) {
-    const gap =
-      (Date.parse(days[i]) - Date.parse(days[i - 1])) / 86400000;
-    if (gap <= MERGE_GAP_DAYS + 1) cur.push(days[i]);
+    const gap = (Date.parse(days[i]!) - Date.parse(days[i - 1]!)) / 86400000;
+    if (gap <= MERGE_GAP_DAYS + 1) cur.push(days[i]!);
     else {
       runs.push(cur);
-      cur = [days[i]];
+      cur = [days[i]!];
     }
   }
   runs.push(cur);
@@ -116,8 +115,8 @@ export function detectTrips(photos: PhotoRecord[]): Trip[] {
       // include the full inclusive range (covers gap days inside the run)
       void dayStart;
     }
-    const first = Date.parse(run[0]);
-    const last = Date.parse(run[run.length - 1]);
+    const first = Date.parse(run[0]!);
+    const last = Date.parse(run[run.length - 1]!);
     for (const [k, arr] of byDay) {
       const t = Date.parse(k);
       if (t >= first && t <= last) tripPhotos.push(...arr);
@@ -140,11 +139,11 @@ export function detectTrips(photos: PhotoRecord[]): Trip[] {
     }
 
     trips.push({
-      id: run[0],
+      id: run[0]!,
       start: new Date(first),
       end: new Date(last),
       photos: tripPhotos,
-      cover: tripPhotos[Math.floor(tripPhotos.length / 2)] ?? tripPhotos[0],
+      cover: tripPhotos[Math.floor(tripPhotos.length / 2)]!,
       centroid: n > 0 ? { lat: lat / n, lon: lon / n } : null,
     });
   }
