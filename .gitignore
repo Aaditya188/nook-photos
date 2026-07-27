@@ -53,3 +53,4 @@ data/
 # service logs
 apps/*/logs/
 *.log
+.gstack/
