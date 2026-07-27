@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hero.png" alt="Nook Photos" width="100%">
+  <img src="photos/hero.png" alt="Nook Photos" width="100%">
 </p>
 
 <h1 align="center">Nook Photos</h1>
