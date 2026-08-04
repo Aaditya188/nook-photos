@@ -16,6 +16,7 @@ export const qk = {
   personPhotos: (id: string) => ['people', id, 'photos'] as const,
   places: ['places'] as const,
   placePhotos: (label: string) => ['places', label, 'photos'] as const,
+  memories: ['memories'] as const,
   albums: ['albums'] as const,
   album: (id: string) => ['albums', id] as const,
   users: ['users'] as const,
@@ -67,6 +68,11 @@ export function usePersonPhotos(id: string) {
 export function usePlaces() {
   const client = useNookClient();
   return useQuery({ queryKey: qk.places, queryFn: async () => (await client.places()).places });
+}
+
+export function useMemories() {
+  const client = useNookClient();
+  return useQuery({ queryKey: qk.memories, queryFn: async () => (await client.memories()).memories });
 }
 
 export function usePlacePhotos(label: string) {

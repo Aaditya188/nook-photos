@@ -148,6 +148,21 @@ export interface Place {
   coverThumbUrl: string;
 }
 
+/** A precomputed memory collection. The indexer builds these from metadata plus
+ *  the already-stored faces/places (no models, no GPU) and the origin serves them
+ *  with anything since deleted/hidden filtered out. `photoIds` resolve against the
+ *  already-loaded library on the client, so opening a memory needs no extra fetch. */
+export interface Memory {
+  id: string;
+  kind: 'on_this_day' | 'year' | 'place' | 'person';
+  title: string;
+  subtitle: string;
+  coverPhotoId: string;
+  coverThumbUrl: string;
+  count: number;
+  photoIds: string[];
+}
+
 export interface StatusRecord {
   server: { name: string; model: string; version: string; uptimeSec: number };
   storage: { usedBytes: number; totalBytes: number; availableBytes?: number | null; photoBytes: number; videoBytes: number };

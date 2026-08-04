@@ -191,6 +191,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"places": STORE.places(uid)})
         if u.path == "/place-photos":
             return self._send(200, {"photoIds": STORE.place_photos(uid, q.get("label", ""))})
+        if u.path == "/memories":
+            return self._send(200, {"memories": STORE.get_memories(uid)})
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):

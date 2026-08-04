@@ -14,6 +14,7 @@ import {
 import {
   NookApiError,
   type Album,
+  type Memory,
   type Person,
   type PhotoRecord,
   type Place,
@@ -33,6 +34,7 @@ export const qk = {
   albums: ['albums'] as const,
   people: ['people'] as const,
   places: ['places'] as const,
+  memories: ['memories'] as const,
   server: ['server'] as const,
   personPhotos: (id: string) => ['personPhotos', id] as const,
   placePhotos: (label: string) => ['placePhotos', label] as const,
@@ -147,6 +149,16 @@ export function usePlacesQ(enabled = true) {
   return useQuery<Place[]>({
     queryKey: qk.places,
     queryFn: async () => (await client.places()).places,
+    enabled: !!token && enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useMemoriesQ(enabled = true) {
+  const { client, token } = useAuth();
+  return useQuery<Memory[]>({
+    queryKey: qk.memories,
+    queryFn: async () => (await client.memories()).memories,
     enabled: !!token && enabled,
     staleTime: 60_000,
   });

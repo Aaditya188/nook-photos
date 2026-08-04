@@ -172,6 +172,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS index_state (
                 photo_id TEXT PRIMARY KEY, status TEXT, error TEXT, updated_at REAL
             );
+            CREATE TABLE IF NOT EXISTS memories (
+                user_id TEXT PRIMARY KEY, data TEXT, updated_at REAL
+            );
             CREATE INDEX IF NOT EXISTS faces_user ON faces(user_id);
             CREATE INDEX IF NOT EXISTS faces_person ON faces(person_id);
             CREATE INDEX IF NOT EXISTS places_user ON places(user_id);
@@ -905,3 +908,24 @@ class Store:
         with self._lock:
             return [pid for (pid,) in self._db.execute(
                 "SELECT photo_id FROM places WHERE user_id=? AND label=?", (user_id, label))]
+
+    # Memories: precomputed collections (on-this-day / year / place / person). See
+    # memories.py -- pure metadata, no models, no GPU; persisted here so the API can
+    # serve them straight from disk without recomputing on every request.
+    def save_memories(self, user_id: str, mems: list) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO memories(user_id,data,updated_at) VALUES(?,?,?)",
+                (user_id, json.dumps(mems), time.time()))
+            self._db.commit()
+
+    def get_memories(self, user_id: str) -> list:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT data FROM memories WHERE user_id=?", (user_id,)).fetchone()
+        if not row or not row[0]:
+            return []
+        try:
+            return json.loads(row[0])
+        except Exception:
+            return []

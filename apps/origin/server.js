@@ -937,6 +937,42 @@ async function handlePlacePhotos(res, user, label) {
   sendJson(res, 200, { photos: ownedPublicPhotos(ids, user) });
 }
 
+// Memory collections (on-this-day / year / place / person). The indexer precomputes
+// these from metadata + already-stored faces/places (no models, no GPU); the origin
+// just proxies them, dropping anything the user has since deleted or hidden. Memories
+// are a soft feature: if the indexer is down we return an empty list, not an error.
+async function handleMemories(res, user) {
+  let memories;
+  try {
+    const out = await indexerRequest('GET', '/memories?userId=' + encodeURIComponent(user.id), null);
+    memories = out.memories || [];
+  } catch (e) {
+    return sendJson(res, 200, { memories: [] });
+  }
+  const live = new Set(
+    db.photos
+      .filter((p) => p.userId === user.id && p.deletedAt == null && !p.hidden)
+      .map((p) => p.id)
+  );
+  const mapped = [];
+  for (const m of memories) {
+    const ids = (m.photoIds || []).filter((id) => live.has(id));
+    if (!ids.length) continue;
+    const cover = m.coverPhotoId && live.has(m.coverPhotoId) ? m.coverPhotoId : ids[0];
+    mapped.push({
+      id: m.id,
+      kind: m.kind,
+      title: m.title,
+      subtitle: m.subtitle,
+      coverPhotoId: cover,
+      coverThumbUrl: '/api/photos/' + cover + '/thumb',
+      count: ids.length,
+      photoIds: ids,
+    });
+  }
+  sendJson(res, 200, { memories: mapped });
+}
+
 function normalizeEmail(v) {
   if (v === undefined || v === null || v === '') return null;
   if (typeof v !== 'string') throw httpError(400, 'email must be a string');
@@ -1830,6 +1866,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/search' && req.method === 'GET') return handleSearch(res, user, query);
   if (pathname === '/api/people' && req.method === 'GET') return handlePeople(res, user);
   if (pathname === '/api/places' && req.method === 'GET') return handlePlaces(res, user);
+  if (pathname === '/api/memories' && req.method === 'GET') return handleMemories(res, user);
   if (pathname === '/api/place-photos' && req.method === 'GET') return handlePlacePhotos(res, user, query.label || '');
   if (pathname === '/api/people/merge' && req.method === 'POST') return handleMergePeople(req, res, user);
   // Must precede the /api/people/:id match below, or 'prune' reads as a personId.

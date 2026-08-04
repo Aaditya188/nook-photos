@@ -1,23 +1,25 @@
 /**
- * Memories — "On this day": photos taken on today's month/day in previous
- * years, one card per year, above the Library grid. Clicking a card opens the
- * viewer on that year's first photo.
+ * Memories strip above the Library grid. Cards come from the server: the indexer
+ * precomputes collections (on-this-day, per-year, per-place, per-person) from photo
+ * metadata plus the faces/places it already stored -- no models, no GPU on the host.
+ * We resolve each memory's photoIds against the loaded library so clicking a card
+ * opens the viewer over exactly that set (no extra fetch).
  */
 import { useMemo, useRef } from 'react';
 import type { PhotoRecord } from '@nook/core';
 import { useView } from '../state/view';
+import { useMemoriesQ } from '../state/data';
 import { useLazyBlob } from './Tile';
-import { fmtCount } from '../lib/format';
 
 function MemCard({
   photo,
   label,
-  count,
+  sub,
   onClick,
 }: {
   photo: PhotoRecord;
   label: string;
-  count: number;
+  sub: string;
   onClick: () => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
@@ -32,51 +34,53 @@ function MemCard({
       <div className="mem-grad" />
       <div className="mem-cap">
         <div className="mem-label">{label}</div>
-        <div className="mem-count">{fmtCount(count)}</div>
+        <div className="mem-count">{sub}</div>
       </div>
     </button>
   );
 }
 
 export function MemoriesStrip({ photos }: { photos: PhotoRecord[] }) {
-  const { openLightbox } = useView();
+  const { openLightbox, setCurrentList } = useView();
+  const memoriesQ = useMemoriesQ();
 
-  const groups = useMemo(() => {
-    const now = new Date();
-    const m = now.getMonth();
-    const d = now.getDate();
-    const y = now.getFullYear();
-    const byYear = new Map<number, PhotoRecord[]>();
-    for (const p of photos) {
-      const dt = new Date(p.createdAt);
-      if (dt.getMonth() === m && dt.getDate() === d && dt.getFullYear() < y) {
-        const arr = byYear.get(dt.getFullYear());
-        if (arr) arr.push(p);
-        else byYear.set(dt.getFullYear(), [p]);
-      }
-    }
-    return [...byYear.entries()].sort((a, b) => b[0] - a[0]);
+  const byId = useMemo(() => {
+    const m = new Map<string, PhotoRecord>();
+    for (const p of photos) m.set(p.id, p);
+    return m;
   }, [photos]);
 
-  if (groups.length === 0) return null;
+  // Resolve each memory against the loaded library once, dropping any whose photos
+  // are all gone (e.g. deleted since the last rebuild).
+  const cards = useMemo(() => {
+    const out: { id: string; cover: PhotoRecord; label: string; sub: string; list: PhotoRecord[] }[] = [];
+    for (const mem of memoriesQ.data ?? []) {
+      const list = mem.photoIds.map((id) => byId.get(id)).filter((p): p is PhotoRecord => !!p);
+      if (list.length === 0) continue;
+      const cover = byId.get(mem.coverPhotoId) ?? list[0];
+      out.push({ id: mem.id, cover, label: mem.title, sub: mem.subtitle, list });
+    }
+    return out;
+  }, [memoriesQ.data, byId]);
 
-  const thisYear = new Date().getFullYear();
+  if (cards.length === 0) return null;
+
   return (
     <div className="mem-strip">
-      <div className="mem-title">Memories · on this day</div>
+      <div className="mem-title">Memories</div>
       <div className="mem-rail">
-        {groups.map(([year, list]) => {
-          const ago = thisYear - year;
-          return (
-            <MemCard
-              key={year}
-              photo={list[0]}
-              label={ago === 1 ? '1 year ago' : ago + ' years ago'}
-              count={list.length}
-              onClick={() => openLightbox(list[0].id)}
-            />
-          );
-        })}
+        {cards.map((c) => (
+          <MemCard
+            key={c.id}
+            photo={c.cover}
+            label={c.label}
+            sub={c.sub}
+            onClick={() => {
+              setCurrentList(c.list);
+              openLightbox(c.list[0].id);
+            }}
+          />
+        ))}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import type {
   Album,
   AlbumGrant,
   AuthResult,
+  Memory,
   PhotoRecord,
   PhotoUpload,
   PingResponse,
@@ -278,6 +279,9 @@ export class NookClient {
       'GET',
       `/api/place-photos?label=${encodeURIComponent(label)}`,
     );
+  }
+  memories() {
+    return this.request<{ memories: Memory[] }>('GET', '/api/memories');
   }
 
   // ---- albums ----

@@ -39,6 +39,7 @@ class Pipeline:
         # expensive O(n^2) recluster is skipped entirely.
         self._dirty_path = os.path.join(index_dir or os.path.join(data_dir, "ai"), "faces.dirty")
         self._dirty = os.path.exists(self._dirty_path)
+        self._last_memories = 0.0  # throttle for the GPU-free memories rebuild
         self._maint = threading.Lock()  # one face-quality maintenance pass at a time
         self.status = {"indexing": False, "done": 0, "pending": 0, "last_error": ""}
         # Progress + outcome of the background face-quality prune, so a caller polls
@@ -95,7 +96,24 @@ class Pipeline:
                 self.hub.maybe_unload()
             except Exception:
                 pass
+            # Rebuild memory collections on a throttle. Pure metadata over db.json +
+            # the already-stored faces/places -- no model load, no GPU. Runs from the
+            # loop (not gated on the queue draining) so it still refreshes on a library
+            # that always has a thumbless photo keeping the queue non-empty.
+            self._maybe_build_memories()
             self._stop.wait(self.poll_interval)
+
+    def _maybe_build_memories(self):
+        if time.time() - self._last_memories < 3600:
+            return
+        try:
+            from memories import build_memories
+            n = build_memories(self.store, self.db_path)
+            self._last_memories = time.time()
+            print("[pipeline] rebuilt memories:", n, flush=True)
+        except Exception as e:
+            self._last_memories = time.time()  # don't hot-loop a broken build
+            print("[pipeline] memories error:", e, flush=True)
 
     def _recluster_all(self):
         for uid in self.store.face_user_ids():
