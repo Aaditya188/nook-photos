@@ -938,14 +938,17 @@ async function handlePlacePhotos(res, user, label) {
 }
 
 // Memory collections (on-this-day / year / place / person). The indexer precomputes
-// these from metadata + already-stored faces/places (no models, no GPU); the origin
-// just proxies them, dropping anything the user has since deleted or hidden. Memories
-// are a soft feature: if the indexer is down we return an empty list, not an error.
-async function handleMemories(res, user) {
-  let memories;
+// these from metadata + already-stored faces/places (no models, no GPU) and writes
+// them to memories.json in the data dir. The origin serves that file DIRECTLY -- not
+// by proxying the indexer -- so Memories keep working while the indexer is stopped
+// (the common case on a low-power host). Anything the user has since deleted or
+// hidden is filtered out here against the live library. Soft feature: if the file
+// isn't there yet (indexer never ran), return an empty list, not an error.
+function handleMemories(res, user) {
+  let memories = [];
   try {
-    const out = await indexerRequest('GET', '/memories?userId=' + encodeURIComponent(user.id), null);
-    memories = out.memories || [];
+    const parsed = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'memories.json'), 'utf8'));
+    memories = (parsed.users && parsed.users[user.id]) || [];
   } catch (e) {
     return sendJson(res, 200, { memories: [] });
   }

@@ -8,6 +8,7 @@ the host. The whole pass is light CPU (group + sort over the library) and runs
 on a throttle, not in a loop.
 """
 import json
+import os
 from datetime import datetime, date
 
 MAX_PHOTOS = 60          # cap photos stored per memory
@@ -124,10 +125,27 @@ def _build_for_user(uid, photos, store):
 
 
 def build_memories(store, db_path):
-    """Regenerate and persist memories for every user. Returns the total count."""
+    """Regenerate and persist memories for every user. Returns the total count.
+
+    Writes to two places: the sqlite `memories` table (kept for the indexer's own
+    /memories endpoint) AND a plain memories.json in the data dir. The origin -- a
+    zero-dependency Node process with no sqlite driver -- serves Memories straight
+    from that JSON, so they keep working even while the indexer is stopped.
+    """
     total = 0
+    by_user = {}
     for uid, photos in _read_photos_by_user(db_path).items():
         mems = _build_for_user(uid, photos, store)
         store.save_memories(uid, mems)
+        by_user[uid] = mems
         total += len(mems)
+    # Atomic write next to db.json so the origin never reads a half-written file.
+    try:
+        out = os.path.join(os.path.dirname(os.path.abspath(db_path)), "memories.json")
+        tmp = out + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"users": by_user}, f)
+        os.replace(tmp, out)
+    except Exception as e:
+        print("[memories] json write failed:", e, flush=True)
     return total
