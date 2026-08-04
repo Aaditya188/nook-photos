@@ -14,6 +14,13 @@ apps/web/dist/
 packages/*/dist/
 *.tsbuildinfo
 
+# Stray Expo/EAS config that lands at the repo ROOT when `eas`/`expo` is run here
+# instead of in apps/mobile. The real app config lives in apps/mobile; a root
+# copy is always accidental (and breaks builds). Anchored with a leading slash so
+# apps/mobile/app.json and apps/mobile/eas.json are untouched.
+/app.json
+/eas.json
+
 # python bytecode (the indexer runs in-place, so these appear on every boot)
 __pycache__/
 *.py[cod]
